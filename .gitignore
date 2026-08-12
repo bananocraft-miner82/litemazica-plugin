@@ -12,6 +12,9 @@
 
 # Package Files #
 *.jar
+# ...except the Gradle wrapper jar, which MUST be committed or no clone (and no
+# CI runner) can build without a Gradle install of its own.
+!gradle/wrapper/gradle-wrapper.jar
 *.war
 *.nar
 *.ear
@@ -22,3 +25,13 @@
 # virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
 hs_err_pid*
 replay_pid*
+
+# Gradle
+build/
+.gradle/
+
+# IntelliJ IDEA
+.idea/
+*.iml
+*.ipr
+*.iws

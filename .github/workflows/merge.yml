@@ -1,0 +1,271 @@
+name: Merge to main
+
+# Fires when a pull request is merged into main. It computes the next version by
+# patch-bumping the latest v* tag, then runs a full build -> test -> package ->
+# verify across every distribution and, if all of that is green, publishes a
+# GitHub Release with the versioned jars attached.
+#
+# Why this is self-contained (and does NOT lean on release.yml): the tag it
+# creates is pushed with the default GITHUB_TOKEN, and GitHub intentionally does
+# not start new workflow runs from events a GITHUB_TOKEN produced. So the v* tag
+# born here will NOT re-trigger release.yml — no double build, no double publish.
+# release.yml stays available for manual/tag-driven releases.
+on:
+  pull_request:
+    types: [ closed ]
+    branches: [ main ]
+  # Handy for a dry run / first release without opening a throwaway PR.
+  workflow_dispatch:
+
+# Creating the tag and the GitHub Release both need write access to contents.
+permissions:
+  contents: write
+
+# Serialize releases. Two merges landing close together must not read the same
+# "latest tag" and both try to mint the same next version. Queue, don't cancel.
+concurrency:
+  group: merge-release
+  cancel-in-progress: false
+
+jobs:
+  setup:
+    name: Resolve version and targets
+    # Only act on a real merge (closed-but-not-merged PRs are ignored) or a
+    # manual dispatch. Every downstream job hangs off this one, so skipping here
+    # skips the whole workflow.
+    if: ${{ github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+      fabric: ${{ steps.read.outputs.fabric }}
+      neoforge: ${{ steps.read.outputs.neoforge }}
+    steps:
+      # Full history + tags: the version bump reads the existing v* tags.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - id: version
+        name: Compute next version (patch-bump latest v* tag)
+        run: |
+          set -euo pipefail
+          git fetch --tags --force
+          latest=$(git tag -l 'v*.*.*' --sort=-v:refname | head -n1 || true)
+          if [ -z "$latest" ]; then
+            base=$(grep -E '^baseVersion=' gradle.properties | cut -d= -f2 | tr -d '[:space:]')
+            base=${base:-1.0.0}
+            version="$base"
+            echo "No existing v* tag; seeding first release at base $version"
+          else
+            core=${latest#v}
+            major=$(echo "$core" | cut -d. -f1)
+            minor=$(echo "$core" | cut -d. -f2)
+            patch=$(echo "$core" | cut -d. -f3)
+            version="${major}.${minor}.$((patch + 1))"
+            echo "Latest tag $latest -> next version $version"
+          fi
+          # Guard against a re-run racing an already-created tag.
+          if git rev-parse "v$version" >/dev/null 2>&1; then
+            echo "::error::tag v$version already exists; refusing to overwrite"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=v$version" >> "$GITHUB_OUTPUT"
+
+      # Single source of truth for which Minecraft versions the mods target,
+      # exactly as ci.yml / release.yml read it.
+      - id: read
+        name: Read build targets
+        run: |
+          echo "fabric=$(jq -c '.fabric' mc-targets.json)" >> "$GITHUB_OUTPUT"
+          echo "neoforge=$(jq -c '.neoforge' mc-targets.json)" >> "$GITHUB_OUTPUT"
+
+  bukkit:
+    name: Bukkit plugin
+    needs: setup
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: temurin
+      - uses: gradle/actions/setup-gradle@v4
+
+      # build runs the unit tests too (test); -Pversion flows into plugin.yml so
+      # /version Litemazica matches the release.
+      - name: Build and test
+        run: ./gradlew :core:build :bukkit:build -Pversion=${{ needs.setup.outputs.version }} --stacktrace
+
+      # One jar for every supported server, so the name carries no MC version -
+      # only the release version.
+      - name: Package
+        run: |
+          mkdir -p dist
+          cp bukkit/build/libs/Litemazica.jar \
+             "dist/Litemazica-bukkit-${{ needs.setup.outputs.version }}.jar"
+
+      # Verify the descriptor actually got stamped with this version.
+      - name: Verify descriptor version
+        run: |
+          set -euo pipefail
+          jar="dist/Litemazica-bukkit-${{ needs.setup.outputs.version }}.jar"
+          unzip -p "$jar" plugin.yml | grep -q "version: ${{ needs.setup.outputs.version }}"
+          echo "plugin.yml reports version ${{ needs.setup.outputs.version }}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-bukkit
+          path: dist/*.jar
+          if-no-files-found: error
+
+  fabric:
+    name: Fabric ${{ matrix.target.mc }}
+    needs: setup
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: ${{ fromJSON(needs.setup.outputs.fabric) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: temurin
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Build and test
+        run: >
+          ./gradlew :fabric:build
+          -Pversion=${{ needs.setup.outputs.version }}
+          -PminecraftVersion=${{ matrix.target.mc }}
+          -PyarnMappings=${{ matrix.target.yarn }}
+          -PloaderVersion=${{ matrix.target.loader }}
+          -PfabricApiVersion=${{ matrix.target.api }}
+
+      # archivesName already embeds both the Minecraft version and the release
+      # version; keep everything except the -sources jar.
+      - name: Package
+        run: |
+          mkdir -p dist
+          find fabric/build/libs -name '*.jar' ! -name '*-sources*' -exec cp {} dist/ \;
+          ls -l dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-fabric-${{ matrix.target.mc }}
+          path: dist/*.jar
+          if-no-files-found: error
+
+  neoforge:
+    name: NeoForge ${{ matrix.target.mc }}
+    needs: setup
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: ${{ fromJSON(needs.setup.outputs.neoforge) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: temurin
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Build and test
+        run: >
+          ./gradlew :neoforge:build
+          -Pversion=${{ needs.setup.outputs.version }}
+          -PneoForgeVersion=${{ matrix.target.neoforge }}
+          -PneoMinecraftVersion=${{ matrix.target.mc }}
+
+      - name: Package
+        run: |
+          mkdir -p dist
+          find neoforge/build/libs -name '*.jar' ! -name '*-sources*' -exec cp {} dist/ \;
+          ls -l dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-neoforge-${{ matrix.target.mc }}
+          path: dist/*.jar
+          if-no-files-found: error
+
+  publish:
+    name: Verify and publish release
+    needs: [ setup, bukkit, fabric, neoforge ]
+    runs-on: ubuntu-latest
+    steps:
+      # Need mc-targets.json here to know how many jars to expect.
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: dist-*
+          merge-multiple: true
+          path: dist
+
+      # The "verify" step: prove packaging produced exactly what we expect and
+      # that every jar is a real, non-empty archive before anything is published.
+      - name: Verify packaged assets
+        run: |
+          set -euo pipefail
+          version="${{ needs.setup.outputs.version }}"
+          shopt -s nullglob
+          jars=(dist/*.jar)
+          echo "Packaged ${#jars[@]} jar(s):"
+          ls -l dist
+          fail=0
+
+          # 1 Bukkit jar + one mod jar per Minecraft target.
+          expected=$(( 1 \
+            + $(jq '.fabric  | length' mc-targets.json) \
+            + $(jq '.neoforge | length' mc-targets.json) ))
+          if [ "${#jars[@]}" -ne "$expected" ]; then
+            echo "::error::expected $expected jar(s), found ${#jars[@]}"; fail=1
+          fi
+
+          # The version must appear in every filename.
+          if [ ! -f "dist/Litemazica-bukkit-${version}.jar" ]; then
+            echo "::error::missing dist/Litemazica-bukkit-${version}.jar"; fail=1
+          fi
+
+          # Each jar must be non-empty, a valid zip, and version-stamped by name.
+          for j in "${jars[@]}"; do
+            if [ ! -s "$j" ]; then echo "::error::$j is empty"; fail=1; fi
+            if ! unzip -t "$j" >/dev/null 2>&1; then
+              echo "::error::$j is not a valid archive"; fail=1
+            fi
+            case "$j" in
+              *"$version"*) ;;
+              *) echo "::error::$j does not carry version $version in its name"; fail=1 ;;
+            esac
+          done
+
+          exit $fail
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          # Created with GITHUB_TOKEN, so this tag push does NOT trigger
+          # release.yml (see the header note).
+          tag_name: ${{ needs.setup.outputs.tag }}
+          target_commitish: ${{ github.event.pull_request.base.ref || github.ref_name }}
+          name: Litemazica ${{ needs.setup.outputs.version }}
+          files: dist/*.jar
+          generate_release_notes: true
+          body: |
+            Auto-released on merge to `main`. Pick the jar for your server:
+
+            | Server | File |
+            | --- | --- |
+            | Spigot / Paper / Purpur (1.20+) | `Litemazica-bukkit-*.jar` |
+            | Fabric | `Litemazica-fabric-mc<version>-*.jar` |
+            | NeoForge | `Litemazica-neoforge-mc<version>-*.jar` |
+
+            The Bukkit plugin is one jar for every supported server version. The
+            mods are built per Minecraft version — match the version in the
+            filename to your server.

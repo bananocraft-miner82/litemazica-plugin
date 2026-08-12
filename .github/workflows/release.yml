@@ -1,0 +1,172 @@
+name: Release
+
+on:
+  push:
+    tags: [ 'v*' ]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release, without the leading v (e.g. 1.2.3)'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  setup:
+    name: Resolve version and targets
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      fabric: ${{ steps.read.outputs.fabric }}
+      neoforge: ${{ steps.read.outputs.neoforge }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: v
+        run: |
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            echo "version=${{ github.event.inputs.version }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - id: read
+        run: |
+          echo "fabric=$(jq -c '.fabric' mc-targets.json)" >> "$GITHUB_OUTPUT"
+          echo "neoforge=$(jq -c '.neoforge' mc-targets.json)" >> "$GITHUB_OUTPUT"
+
+  bukkit:
+    name: Bukkit plugin
+    needs: setup
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: temurin
+      - uses: gradle/actions/setup-gradle@v4
+
+      # -Pversion flows into plugin.yml, so /version Litemazica matches the release.
+      - name: Build and test
+        run: ./gradlew :core:build :bukkit:build -Pversion=${{ needs.setup.outputs.version }} --stacktrace
+
+      # One jar for every supported server, so the name carries no MC version.
+      - name: Name the asset
+        run: |
+          mkdir -p dist
+          cp bukkit/build/libs/Litemazica.jar \
+             "dist/Litemazica-bukkit-${{ needs.setup.outputs.version }}.jar"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-bukkit
+          path: dist/*.jar
+          if-no-files-found: error
+
+  fabric:
+    name: Fabric ${{ matrix.target.mc }}
+    needs: setup
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: ${{ fromJSON(needs.setup.outputs.fabric) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: temurin
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Build
+        run: >
+          ./gradlew :fabric:build
+          -Pversion=${{ needs.setup.outputs.version }}
+          -PminecraftVersion=${{ matrix.target.mc }}
+          -PyarnMappings=${{ matrix.target.yarn }}
+          -PloaderVersion=${{ matrix.target.loader }}
+          -PfabricApiVersion=${{ matrix.target.api }}
+
+      # archivesName already embeds the Minecraft version; drop the -sources jar.
+      - name: Collect
+        run: |
+          mkdir -p dist
+          find fabric/build/libs -name '*.jar' ! -name '*-sources*' -exec cp {} dist/ \;
+          ls -l dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-fabric-${{ matrix.target.mc }}
+          path: dist/*.jar
+          if-no-files-found: error
+
+  neoforge:
+    name: NeoForge ${{ matrix.target.mc }}
+    needs: setup
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: ${{ fromJSON(needs.setup.outputs.neoforge) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: temurin
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Build
+        run: >
+          ./gradlew :neoforge:build
+          -Pversion=${{ needs.setup.outputs.version }}
+          -PneoForgeVersion=${{ matrix.target.neoforge }}
+          -PneoMinecraftVersion=${{ matrix.target.mc }}
+
+      - name: Collect
+        run: |
+          mkdir -p dist
+          find neoforge/build/libs -name '*.jar' ! -name '*-sources*' -exec cp {} dist/ \;
+          ls -l dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-neoforge-${{ matrix.target.mc }}
+          path: dist/*.jar
+          if-no-files-found: error
+
+  publish:
+    name: Publish release
+    needs: [ setup, bukkit, fabric, neoforge ]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: dist-*
+          merge-multiple: true
+          path: dist
+
+      - name: List assets
+        run: ls -l dist
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.setup.outputs.version }}
+          name: Litemazica ${{ needs.setup.outputs.version }}
+          files: dist/*.jar
+          generate_release_notes: true
+          body: |
+            Pick the jar for your server:
+
+            | Server | File |
+            | --- | --- |
+            | Spigot / Paper / Purpur (1.20+) | `Litemazica-bukkit-*.jar` |
+            | Fabric | `Litemazica-fabric-mc<version>-*.jar` |
+            | NeoForge | `Litemazica-neoforge-mc<version>-*.jar` |
+
+            The Bukkit plugin is one jar for every supported server version. The
+            mods are built per Minecraft version — match the version in the
+            filename to your server.

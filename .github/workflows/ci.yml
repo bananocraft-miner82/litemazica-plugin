@@ -1,0 +1,116 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  # Single source of truth for which Minecraft versions the mods target.
+  targets:
+    name: Read build targets
+    runs-on: ubuntu-latest
+    outputs:
+      fabric: ${{ steps.read.outputs.fabric }}
+      neoforge: ${{ steps.read.outputs.neoforge }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: read
+        run: |
+          echo "fabric=$(jq -c '.fabric' mc-targets.json)" >> "$GITHUB_OUTPUT"
+          echo "neoforge=$(jq -c '.neoforge' mc-targets.json)" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Core & Bukkit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # JDK 21 throughout: modules that target Java 17 pin it with
+      # options.release, and the mod modules need a real 21.
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: temurin
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Build and test
+        run: ./gradlew :core:build :bukkit:build --stacktrace
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Litemazica-bukkit
+          path: bukkit/build/libs/Litemazica.jar
+          if-no-files-found: error
+
+  bukkit-compatibility:
+    name: Bukkit compiles against ${{ matrix.api }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        api:
+          - '1.20.1-R0.1-SNAPSHOT'
+          - '1.20.6-R0.1-SNAPSHOT'
+          - '1.21-R0.1-SNAPSHOT'
+          - '1.21.4-R0.1-SNAPSHOT'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: temurin
+      - uses: gradle/actions/setup-gradle@v4
+
+      # We ship ONE Bukkit jar, built against the floor, because Bukkit keeps old
+      # methods around. This proves the source stays inside the common subset.
+      - name: Compile against ${{ matrix.api }}
+        run: ./gradlew :bukkit:compileJava -PspigotApiVersion=${{ matrix.api }}
+
+  fabric:
+    name: Fabric ${{ matrix.target.mc }}
+    needs: targets
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: ${{ fromJSON(needs.targets.outputs.fabric) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: temurin
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Build
+        run: >
+          ./gradlew :fabric:build
+          -PminecraftVersion=${{ matrix.target.mc }}
+          -PyarnMappings=${{ matrix.target.yarn }}
+          -PloaderVersion=${{ matrix.target.loader }}
+          -PfabricApiVersion=${{ matrix.target.api }}
+
+  neoforge:
+    name: NeoForge ${{ matrix.target.mc }}
+    needs: targets
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: ${{ fromJSON(needs.targets.outputs.neoforge) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: temurin
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Build
+        run: >
+          ./gradlew :neoforge:build
+          -PneoForgeVersion=${{ matrix.target.neoforge }}
+          -PneoMinecraftVersion=${{ matrix.target.mc }}

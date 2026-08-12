@@ -1,0 +1,80 @@
+# ─────────────────────────────────────────────────────────────────────────
+#  Litemazica plugin configuration
+# ─────────────────────────────────────────────────────────────────────────
+
+# Base URL of the Litemazica API — the service that turns a share code into a
+# .litematic. Use the hosted app, or point this at your own Worker deployment.
+# No trailing slash needed.
+api-base-url: "https://litemazica.app"
+
+# How long to wait for the API before giving up, in seconds.
+request-timeout-seconds: 20
+
+# ── Local schematics (/litemazica place) ──────────────────────────────────
+# Folder (under this plugin's data folder) where admins drop .litematic files
+# to build mazes from without the API. Created automatically on first run.
+# Place one with:  /litemazica place <file> [x y z] [name]
+#
+# A hand-made schematic has no entrance metadata, so the entrance is defaulted
+# to the middle of the schematic's north (z=0) edge at floor level and rotated
+# to face the player. File mazes always reset to their own layout (there is no
+# generator to reshuffle them), so a scheduled reset restores the built state.
+schematic-folder: "schematics"
+
+# Safety cap: refuse to build a maze larger than this many blocks (voxels).
+# A 120x120x4 maze sits well under this; it only rejects pathological inputs.
+max-volume: 6000000
+
+# ── Terrain snapshots ─────────────────────────────────────────────────────
+# Record the terrain a maze is built over, so /litemazica remove puts the world
+# back instead of leaving a box of air. Snapshots live in snapshots/<id>.dat
+# and are deleted when the maze is removed.
+#
+# Captured: every block, plus chest/barrel contents, sign text, spawners and
+# loot tables. Not captured: entities (item frames, armour stands, paintings).
+snapshot: true
+
+# Skip the snapshot for mazes larger than this many blocks. Above the cap the
+# maze still builds, but removing it clears to air. Snapshots are stored as one
+# small gzipped file per world chunk and are captured/restored a chunk at a time,
+# so memory stays flat no matter the size — this cap is only about disk and the
+# background time a huge capture/restore takes, not RAM. 6,000,000 matches the
+# max buildable maze, so by default every maze is restorable.
+snapshot-max-volume: 6000000
+
+# ── Open-top mazes: blend into terrain above ──────────────────────────────
+# A maze built above ground with no ceiling can leave tree canopy and overhangs
+# poking down into the play area. "Blend top" scans this many blocks above the
+# maze and, per column: strips tree canopy/water where it's under open sky, and
+# where solid rock/dirt sits within ~20 blocks it caps the maze under it (with
+# the maze's ceiling material) instead of gouging a hole. A good "on" value is
+# ~40 (tall enough to take a whole tree); 0 disables it.
+#
+# Mazes designed in the Litemazica editor carry their own "Blend top" toggle
+# (only offered when no ceiling is selected) and that always wins. This default
+# is the fallback for file mazes (/litemazica place), applied ONLY to mazes that
+# are actually open-topped, so a roofed maze is never touched.
+#
+# Everything the blend changes is inside the terrain snapshot, so
+# /litemazica remove restores the canopy/terrain along with the maze.
+blend-top-reach: 0
+
+# ── Regeneration ──────────────────────────────────────────────────────────
+# Default interval, in minutes, at which a placed maze resets (0 = never).
+# Regeneration is always skipped while any player is inside the maze region.
+default-regen-minutes: 0
+
+# On reset, build a brand-new layout (true) or reproduce the exact same maze
+# (false). Overridable per maze with /litemazica regen <id> <minutes> [fresh|same].
+regen-fresh-layout: true
+
+# How often (seconds) the scheduler checks whether any maze is due to reset.
+# The actual reset only fires when the maze's interval has elapsed AND no player
+# is inside its region. Minimum 5.
+regen-check-seconds: 30
+
+# ── Web editor (/litemazica editor) ───────────────────────────────────────
+# After a player runs /litemazica editor, the plugin polls the API this often
+# (seconds) to see whether they've pressed "Apply to server" in the browser.
+# The session itself lasts up to an hour. Minimum 2.
+editor-poll-seconds: 4

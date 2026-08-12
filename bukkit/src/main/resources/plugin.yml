@@ -1,0 +1,74 @@
+name: Litemazica
+version: '${version}'
+main: app.litemazica.bukkit.LitemazicaPlugin
+api-version: '1.20'
+description: Build Litemazica mazes in your world from a share code or connected editor.
+website: https://litemazica.app
+authors: [Litemazica]
+
+commands:
+  litemazica:
+    description: Generate and manage Litemazica mazes.
+    usage: |-
+      /litemazica editor                            - design a maze in the browser, then Apply
+      /litemazica edit <id>                         - re-open a placed maze in the editor and rebuild it
+      /litemazica start [id]                        - teleport to a maze entrance
+      /litemazica generate <code> [x y z] [name]   - build a maze (at your feet, or at x y z)
+      /litemazica place <file> [x y z] [name]      - build a maze from a .litematic in schematics/
+      /litemazica files                             - list available .litematic files
+      /litemazica list                              - list placed mazes
+      /litemazica remove <id>                       - remove a placed maze
+      /litemazica regen <id> <off|hourly|daily|weekly|monthly|now> [fresh|same]
+                                                  - set the reset schedule, or reset now
+      /litemazica reload                            - reload the config
+    aliases: [lmz, maze]
+
+permissions:
+  litemazica.*:
+    description: Grants every Litemazica permission.
+    default: op
+    children:
+      litemazica.start: true
+      litemazica.editor: true
+      litemazica.edit: true
+      litemazica.generate: true
+      litemazica.place: true
+      litemazica.files: true
+      litemazica.list: true
+      litemazica.remove: true
+      litemazica.regen: true
+      litemazica.reload: true
+  # The one player-facing command: playing a maze is not an admin action, so
+  # this defaults to everyone. Revoke it in your permissions plugin to gate
+  # entry (e.g. to a rank or a paid tier).
+  litemazica.start:
+    description: Teleport yourself to a maze entrance.
+    default: true
+  # Building a maze is an admin action whether by code or via the editor.
+  litemazica.editor:
+    description: Design a maze in the web editor and build it in-world.
+    default: op
+  litemazica.edit:
+    description: Re-open a placed maze in the web editor and rebuild it in place.
+    default: op
+  litemazica.generate:
+    description: Build a maze from a share code.
+    default: op
+  litemazica.place:
+    description: Build a maze from a local .litematic file.
+    default: op
+  litemazica.files:
+    description: List the .litematic files available to place.
+    default: op
+  litemazica.list:
+    description: List placed mazes.
+    default: op
+  litemazica.remove:
+    description: Remove a placed maze.
+    default: op
+  litemazica.regen:
+    description: Set a maze's periodic regeneration.
+    default: op
+  litemazica.reload:
+    description: Reload the plugin configuration.
+    default: op

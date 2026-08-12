@@ -1,0 +1,32 @@
+{
+  "_comment": [
+    "Every Minecraft version the mods are built for. CI reads this to drive both",
+    "the pull-request build matrix and the release, so adding a version is one",
+    "edit here - no workflow changes.",
+    "",
+    "Adding a version is not always free: the mod loaders compile against",
+    "Minecraft's own classes, so a new series can break the adapter. If it does,",
+    "add fabric/src/mc<series>/java with the class that drifted (only",
+    "FabricWorldAccess has so far) and CI will tell you immediately."
+  ],
+  "fabric": [
+    {
+      "mc": "1.20.1",
+      "yarn": "1.20.1+build.10",
+      "loader": "0.15.11",
+      "api": "0.92.2+1.20.1"
+    },
+    {
+      "mc": "1.21.1",
+      "yarn": "1.21.1+build.3",
+      "loader": "0.16.9",
+      "api": "0.115.1+1.21.1"
+    }
+  ],
+  "neoforge": [
+    {
+      "mc": "1.21.1",
+      "neoforge": "21.1.243"
+    }
+  ]
+}
