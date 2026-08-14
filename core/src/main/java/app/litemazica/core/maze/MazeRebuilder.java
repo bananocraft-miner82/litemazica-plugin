@@ -10,7 +10,9 @@ import app.litemazica.core.platform.WorldAccess;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
@@ -35,6 +37,15 @@ final class MazeRebuilder
     private final SchematicFolder schematics;
 
     private Scheduler.Cancellable schedulerTask;
+
+    /**
+     * Maze ids the scheduled loop currently has a reset in flight for. Bounds how
+     * many scheduled resets run at once (see {@code regen-max-concurrent}) so a
+     * batch of mazes sharing a schedule staggers across checks instead of all
+     * fetching and pasting at the same instant. Touched only from {@link #tick}
+     * on the main thread, so a plain set is safe.
+     */
+    private final Set<String> scheduledRegens = new HashSet<>();
 
     MazeRebuilder(Platform platform, LitemazicaClient client, MazeRegistry registry, OperationLocks locks,
                   MazeStorage storage, SnapshotPolicy snapshots, BlendPolicy blend, SchematicFolder schematics)
@@ -76,8 +87,22 @@ final class MazeRebuilder
                     + " never completed — releasing it for the next check.");
         }
 
+        // Forget resets that have since finished (the maze released its lock), so
+        // the in-flight count reflects only work still running.
+        scheduledRegens.removeIf(id -> !locks.isBusy(id));
+
+        int maxConcurrent = Math.max(1, platform.config().getInt("regen-max-concurrent", 1));
+
         for (PlacedMaze maze : registry.all())
         {
+            if (scheduledRegens.size() >= maxConcurrent)
+            {
+                // At the concurrency cap. The mazes left over are still due, so
+                // the next check picks them up — a shared schedule staggers out
+                // instead of stampeding the server all at once.
+                break;
+            }
+
             if (!maze.isRegenDue(now) || locks.isBusy(maze.id()))
             {
                 continue;
@@ -89,7 +114,10 @@ final class MazeRebuilder
                 continue;
             }
 
-            regenerate(maze, null, Audience.NONE);
+            // Nobody asked for this reset, but online admins should still hear
+            // it happened — the console log alone reaches no one who's in-game.
+            regenerate(maze, null, platform.admins());
+            scheduledRegens.add(maze.id());
         }
     }
 

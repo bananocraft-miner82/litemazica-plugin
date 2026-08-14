@@ -1,5 +1,6 @@
 package app.litemazica.core.maze;
 
+import app.litemazica.core.platform.Audience;
 import app.litemazica.core.platform.ConfigSource;
 import app.litemazica.core.platform.Platform;
 import app.litemazica.core.platform.PlayerLookup;
@@ -18,6 +19,7 @@ final class FakePlatform implements Platform
     final FakeConfig config = new FakeConfig();
     final TestScheduler scheduler = new TestScheduler();
     final FakePlayers players = new FakePlayers();
+    final FakeAudience admins = new FakeAudience();
     private final Map<String, WorldAccess> worlds = new HashMap<>();
     private final File dataFolder;
     private final Logger logger;
@@ -70,6 +72,12 @@ final class FakePlatform implements Platform
     public PlayerLookup players()
     {
         return players;
+    }
+
+    @Override
+    public Audience admins()
+    {
+        return admins;
     }
 
     @Override

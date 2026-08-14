@@ -1,6 +1,7 @@
 package app.litemazica.bukkit.platform;
 
 import app.litemazica.core.maze.Region;
+import app.litemazica.core.platform.Audience;
 import app.litemazica.core.platform.ConfigSource;
 import app.litemazica.core.platform.Platform;
 import app.litemazica.core.platform.PlayerLookup;
@@ -92,6 +93,24 @@ public final class BukkitPlatform implements Platform
     public PlayerLookup players()
     {
         return players;
+    }
+
+    @Override
+    public Audience admins()
+    {
+        // Re-scan online players on every send, not once here: an admin may log in
+        // between wiring and the announcement. Managing regeneration is gated on
+        // litemazica.regen, so that's who "admin" means for this notice.
+        return (style, text) ->
+        {
+            for (Player player : Bukkit.getOnlinePlayers())
+            {
+                if (player.hasPermission("litemazica.regen"))
+                {
+                    new BukkitAudience(player).send(style, text);
+                }
+            }
+        };
     }
 
     @Override

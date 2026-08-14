@@ -73,7 +73,12 @@ final class PlacementGeometry
         int rez = rotZ(maze.entranceX(), maze.entranceZ(), rot, sizeX, sizeZ);
         int offX = ax - rex;
         int offZ = az - rez;
-        int baseY = ay - 1 + maze.originY(); // maze floor plane sits at ay-1
+        // The player stands in the entrance's *own* level, so sink the body by
+        // that level's height above the floor plane (entranceY, in paste-origin
+        // coords). A ground-level (level-0) entrance has entranceY == 0 and lands
+        // its floor at ay-1; a higher-level entrance drops the whole maze further,
+        // putting its own floor at ay-1 and the levels below it underground.
+        int baseY = ay - 1 + maze.originY() - maze.entranceY(); // entrance level sits at ay-1
 
         // Bounding box from the four rotated xz corners.
         int[][] corners = {{0, 0}, {sizeX - 1, 0}, {0, sizeZ - 1}, {sizeX - 1, sizeZ - 1}};

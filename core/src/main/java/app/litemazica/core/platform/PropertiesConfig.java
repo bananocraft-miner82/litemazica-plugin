@@ -53,6 +53,11 @@ public final class PropertiesConfig implements ConfigSource
             # How often (seconds) the scheduler checks whether a maze is due.
             regen-check-seconds=30
 
+            # The most mazes the scheduler resets at once. Mazes that come due
+            # together are staggered across checks instead of rebuilt in one
+            # burst, so fetches and block work don't spike. Minimum 1.
+            regen-max-concurrent=1
+
             # How often (seconds) /litemazica editor and /litemazica edit poll for
             # a pressed "Apply to server". Minimum 2.
             editor-poll-seconds=4

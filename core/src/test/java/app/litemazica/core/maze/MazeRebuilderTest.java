@@ -124,6 +124,54 @@ class MazeRebuilderTest
     }
 
     @Test
+    void theScheduledLoopTellsOnlineAdminsWhenItRegenerates(@TempDir File data)
+    {
+        Fixture f = new Fixture(data);
+        f.buildMaze();
+        PlacedMaze maze = f.registry.get("m1");
+        maze.setRegenMinutes(1);
+        maze.setLastRegenEpochMs(0L); // long overdue
+
+        f.rebuilder.startScheduler();
+        f.platform.scheduler.fireTimers();
+
+        assertTrue(f.platform.admins.sent(MessageStyle.SUCCESS, "regenerated"),
+                "a scheduled reset nobody asked for still announces itself to online admins");
+    }
+
+    @Test
+    void theScheduledLoopStaggersMazesThatComeDueTogether(@TempDir File data)
+    {
+        Fixture f = new Fixture(data);
+        // Two mazes on the same schedule, both long overdue in the same check.
+        f.buildMaze(); // m1 at the default anchor
+        f.builder.generate(new FakeAudience(), "CODE", "world", AX + 50, AY, AZ + 50, 0f, null, null); // m2
+
+        for (PlacedMaze maze : f.registry.all())
+        {
+            maze.setRegenMinutes(1);
+            maze.setLastRegenEpochMs(0L);
+        }
+
+        f.rebuilder.startScheduler();
+
+        // Default cap is 1, so the first check resets exactly one of the two;
+        // the other is still due (its regen clock untouched) and waits its turn.
+        f.platform.scheduler.fireTimers();
+        assertEquals(1, regenerated(f), "only one maze reset on the first check — not both at once");
+
+        // The next check picks up the one that was held back.
+        f.platform.scheduler.fireTimers();
+        assertEquals(2, regenerated(f), "the staggered maze reset on the following check");
+    }
+
+    /** How many placed mazes have completed at least one reset (clock advanced past 0). */
+    private static int regenerated(Fixture f)
+    {
+        return (int) f.registry.all().stream().filter(m -> m.lastRegenEpochMs() > 0).count();
+    }
+
+    @Test
     void theScheduledLoopSkipsAMazeWithSomeoneInside(@TempDir File data)
     {
         Fixture f = new Fixture(data);
