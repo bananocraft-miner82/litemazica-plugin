@@ -96,7 +96,7 @@ jobs:
       # build runs the unit tests too (test); -Pversion flows into plugin.yml so
       # /version Litemazica matches the release.
       - name: Build and test
-        run: ./gradlew :core:build :bukkit:build -Pversion=${{ needs.setup.outputs.version }} --stacktrace
+        run: sh ./gradlew :core:build :bukkit:build -Pversion=${{ needs.setup.outputs.version }} --stacktrace
 
       # One jar for every supported server, so the name carries no MC version -
       # only the release version.
@@ -138,7 +138,7 @@ jobs:
 
       - name: Build and test
         run: >
-          ./gradlew :fabric:build
+          sh ./gradlew :fabric:build
           -Pversion=${{ needs.setup.outputs.version }}
           -PminecraftVersion=${{ matrix.target.mc }}
           -PyarnMappings=${{ matrix.target.yarn }}
@@ -177,7 +177,7 @@ jobs:
 
       - name: Build and test
         run: >
-          ./gradlew :neoforge:build
+          sh ./gradlew :neoforge:build
           -Pversion=${{ needs.setup.outputs.version }}
           -PneoForgeVersion=${{ matrix.target.neoforge }}
           -PneoMinecraftVersion=${{ matrix.target.mc }}

@@ -37,7 +37,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
 
       - name: Build and test
-        run: ./gradlew :core:build :bukkit:build --stacktrace
+        run: sh ./gradlew :core:build :bukkit:build --stacktrace
 
       - uses: actions/upload-artifact@v4
         with:
@@ -67,7 +67,7 @@ jobs:
       # We ship ONE Bukkit jar, built against the floor, because Bukkit keeps old
       # methods around. This proves the source stays inside the common subset.
       - name: Compile against ${{ matrix.api }}
-        run: ./gradlew :bukkit:compileJava -PspigotApiVersion=${{ matrix.api }}
+        run: sh ./gradlew :bukkit:compileJava -PspigotApiVersion=${{ matrix.api }}
 
   fabric:
     name: Fabric ${{ matrix.target.mc }}
@@ -87,7 +87,7 @@ jobs:
 
       - name: Build
         run: >
-          ./gradlew :fabric:build
+          sh ./gradlew :fabric:build
           -PminecraftVersion=${{ matrix.target.mc }}
           -PyarnMappings=${{ matrix.target.yarn }}
           -PloaderVersion=${{ matrix.target.loader }}
@@ -111,6 +111,6 @@ jobs:
 
       - name: Build
         run: >
-          ./gradlew :neoforge:build
+          sh ./gradlew :neoforge:build
           -PneoForgeVersion=${{ matrix.target.neoforge }}
           -PneoMinecraftVersion=${{ matrix.target.mc }}
