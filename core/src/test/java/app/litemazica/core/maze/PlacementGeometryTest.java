@@ -41,10 +41,15 @@ class PlacementGeometryTest
 
     private static MazeSchematic maze(int originY)
     {
+        return maze(originY, 0);
+    }
+
+    private static MazeSchematic maze(int originY, int entranceY)
+    {
         long[] states = new long[(int) (((long) SIZE_X * SIZE_Y * SIZE_Z * 2 + 63) / 64) + 1];
 
         return new MazeSchematic("test", 3465, SIZE_X, SIZE_Y, SIZE_Z, originY,
-                ENTRANCE_X, 0, ENTRANCE_Z, 0, 0,
+                ENTRANCE_X, entranceY, ENTRANCE_Z, 0, 0,
                 List.of("minecraft:air"), states, List.of(), 0, "minecraft:stone_bricks");
     }
 
@@ -85,6 +90,23 @@ class PlacementGeometryTest
         Region r = PlacementGeometry.regionFor(maze(-3), AX, AY, AZ, SOUTH);
 
         assertEquals(AY - 1 - 3, r.minY());
+    }
+
+    @Test
+    void higherLevelEntranceSinksTheMazeSoTheEntranceLevelLandsOnTheAnchor()
+    {
+        // A level-1 entrance sits one level's worth of blocks above the floor
+        // plane (entranceY), so the whole maze drops by that much: the player
+        // still stands in the entrance at ay-1, and level 0 is buried below.
+        int entranceY = 2; // one level stride up, within the SIZE_Y = 4 body
+        Region ground = PlacementGeometry.regionFor(maze(), AX, AY, AZ, SOUTH);
+        Region upper = PlacementGeometry.regionFor(maze(0, entranceY), AX, AY, AZ, SOUTH);
+
+        // The body is sunk by exactly entranceY relative to a ground-level entrance.
+        assertEquals(ground.minY() - entranceY, upper.minY());
+        assertEquals(ground.maxY() - entranceY, upper.maxY());
+        // The entrance column is still at the player's feet either way.
+        assertTrue(upper.contains(AX, AY - 1, AZ), "entrance column missing from region");
     }
 
     @Test

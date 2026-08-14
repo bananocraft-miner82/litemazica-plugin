@@ -1,6 +1,7 @@
 package app.litemazica.neoforge.platform;
 
 import app.litemazica.core.maze.Region;
+import app.litemazica.core.platform.Audience;
 import app.litemazica.core.platform.ConfigSource;
 import app.litemazica.core.platform.Platform;
 import app.litemazica.core.platform.PlayerLookup;
@@ -82,6 +83,26 @@ public final class NeoForgePlatform implements Platform
     public PlayerLookup players()
     {
         return players;
+    }
+
+    /**
+     * NeoForge has no permission system, so "admin" is op level 2 — the same gate
+     * the command tree puts its admin subcommands behind. Re-scan on every send:
+     * an op may join between wiring and the announcement.
+     */
+    @Override
+    public Audience admins()
+    {
+        return (style, text) ->
+        {
+            for (ServerPlayer player : server.getPlayerList().getPlayers())
+            {
+                if (player.hasPermissions(2))
+                {
+                    new NeoForgeAudience(player.createCommandSourceStack()).send(style, text);
+                }
+            }
+        };
     }
 
     /** Worlds are addressed by dimension id, e.g. {@code "minecraft:overworld"}. */

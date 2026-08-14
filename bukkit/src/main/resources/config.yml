@@ -73,6 +73,13 @@ regen-fresh-layout: true
 # is inside its region. Minimum 5.
 regen-check-seconds: 30
 
+# The most mazes the scheduler will reset at the same time. When several come due
+# together (e.g. all set to the same interval), they're staggered across checks
+# rather than fetched and rebuilt in one burst, so the API calls and block work
+# don't spike. Left-over mazes stay due and are picked up on later checks. Raise
+# it if you have headroom to spare; minimum 1.
+regen-max-concurrent: 1
+
 # ── Web editor (/litemazica editor) ───────────────────────────────────────
 # After a player runs /litemazica editor, the plugin polls the API this often
 # (seconds) to see whether they've pressed "Apply to server" in the browser.
