@@ -1,5 +1,5 @@
 name: Litemazica
-version: '${version}'
+version: ${version}
 main: app.litemazica.bukkit.LitemazicaPlugin
 api-version: '1.20'
 description: Build Litemazica mazes in your world from a share code or connected editor.
