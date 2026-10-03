@@ -302,6 +302,11 @@ final class MazeBuilder
 
         audience.send(MessageStyle.INFO, "Restoring the original terrain under " + mazeId + " …");
 
+        // The builds' item frames, paintings and armour stands go with the maze:
+        // the snapshot puts blocks back, not entities, and hanging ones would
+        // otherwise be left floating where their walls were.
+        world.removeTaggedEntities(maze.region(), BuildContents.ENTITY_TAG);
+
         TerrainSnapshot.restore(platform.scheduler(), world, snapshots.dir(mazeId), platform.logger(), () ->
         {
             platform.scheduler().async(() -> TerrainSnapshot.delete(snapshots.dir(mazeId)));
@@ -323,7 +328,17 @@ final class MazeBuilder
             try
             {
                 MazeSchematic maze = source.load(null);
-                platform.scheduler().onMain(() -> onOk.accept(maze));
+                platform.scheduler().onMain(() ->
+                {
+                    String note = MazeText.skippedBuildsNote(maze.skippedBuilds());
+
+                    if (note != null)
+                    {
+                        audience.send(MessageStyle.WARNING, note);
+                    }
+
+                    onOk.accept(maze);
+                });
             }
             catch (Exception e)
             {

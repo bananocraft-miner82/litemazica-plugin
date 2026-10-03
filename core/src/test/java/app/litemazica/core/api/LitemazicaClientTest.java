@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * The pure helpers behind the client: base-URL normalisation, the hand-rolled
@@ -50,6 +51,22 @@ class LitemazicaClientTest
         assertArrayEquals(new int[]{-4, 0, 5}, LitemazicaClient.parseTriple(" -4 , 0 , 5 "), "whitespace tolerated");
         assertArrayEquals(new int[]{7, 0, 0}, LitemazicaClient.parseTriple("7"), "short input pads with zeros");
         assertArrayEquals(new int[]{0, 0, 0}, LitemazicaClient.parseTriple("a,b,c"), "garbage → zeros, not a throw");
+    }
+
+    @Test
+    void describesAFailedRequestInPlainWords()
+    {
+        String base = "https://litemazica.app";
+
+        assertEquals("That maze is too large.",
+                LitemazicaClient.describeFailure(413, "{\"error\":\"That maze is too large.\"}", base),
+                "the API's own explanation is passed on");
+        assertTrue(LitemazicaClient.describeFailure(429, "", base).contains("too many requests"));
+        assertTrue(LitemazicaClient.describeFailure(503, "<html>Error 1102 Worker exceeded resource limits</html>", base)
+                .contains("ran out of time"), "Cloudflare's out-of-CPU page gets its own advice");
+        assertTrue(LitemazicaClient.describeFailure(404, "<html>not found</html>", base).contains("api-base-url"));
+        assertTrue(LitemazicaClient.describeFailure(502, "", base).contains("HTTP 502"));
+        assertTrue(LitemazicaClient.describeFailure(418, null, base).contains("HTTP 418"));
     }
 
     @Test

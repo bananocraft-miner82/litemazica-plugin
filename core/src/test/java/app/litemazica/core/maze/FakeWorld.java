@@ -165,6 +165,31 @@ final class FakeWorld implements WorldAccess
         spawners.put(key(x, y, z), config);
     }
 
+    /** Every block-entity merge, as "x,y,z snbt". */
+    final java.util.List<String> merges = new java.util.ArrayList<>();
+    /** Every entity spawn, as "id x,y,z snbt". */
+    final java.util.List<String> summons = new java.util.ArrayList<>();
+    /** Every tagged-entity removal, as "tag region". */
+    final java.util.List<String> removals = new java.util.ArrayList<>();
+
+    @Override
+    public void mergeBlockEntity(int x, int y, int z, String snbt)
+    {
+        merges.add(x + "," + y + "," + z + " " + snbt);
+    }
+
+    @Override
+    public void summonEntity(String entityId, double x, double y, double z, String snbt)
+    {
+        summons.add(entityId + " " + x + "," + y + "," + z + " " + snbt);
+    }
+
+    @Override
+    public void removeTaggedEntities(app.litemazica.core.maze.Region region, String tag)
+    {
+        removals.add(tag + " " + region);
+    }
+
     /** A palette that resolves an index straight back to its block string. */
     private static final class ListPalette implements PreparedPalette
     {

@@ -253,6 +253,21 @@ class TerrainSnapshotTest
         }
 
         @Override
+        public void mergeBlockEntity(int x, int y, int z, String snbt)
+        {
+        }
+
+        @Override
+        public void summonEntity(String entityId, double x, double y, double z, String snbt)
+        {
+        }
+
+        @Override
+        public void removeTaggedEntities(Region region, String tag)
+        {
+        }
+
+        @Override
         public void updateBlock(int x, int y, int z)
         {
             updated.add(key(x, y, z));

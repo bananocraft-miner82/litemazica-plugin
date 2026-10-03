@@ -306,6 +306,13 @@ final class EditorSessionController
                 MazeSchematic fresh = source.load(null);
                 platform.scheduler().onMain(() ->
                 {
+                    String note = MazeText.skippedBuildsNote(fresh.skippedBuilds());
+
+                    if (note != null)
+                    {
+                        audience.send(MessageStyle.WARNING, note);
+                    }
+
                     // Commit the new design only now that it has loaded, so future
                     // resets reproduce the edited layout.
                     maze.setShareCode(newCode);

@@ -20,6 +20,7 @@ import java.util.function.Consumer;
  *   <li>{@link PlacementGeometry} — where each voxel lands (rotation + anchor).</li>
  *   <li>{@link TrapArming} — the post-placement passes (trapped chests, loot,
  *   dispensers, spawners, pressure plates).</li>
+ *   <li>{@link BuildContents} — custom builds' block-entity data and entities.</li>
  *   <li>{@link TerrainBlender} — blending an open-top maze into the terrain above.</li>
  * </ul>
  *
@@ -91,6 +92,9 @@ public final class MazePlacer
         // Trap-plate positions gathered as they're placed, so they can be thinned
         // out afterwards (see TrapArming.armPressurePlates) without a second scan.
         final List<int[]> trapPlates = new ArrayList<>();
+        // A rebuild lands in the same region: take away the entities the last
+        // placement spawned before laying the new one.
+        world.removeTaggedEntities(region, BuildContents.ENTITY_TAG);
 
         scheduler.eachTick(() ->
         {
@@ -133,6 +137,8 @@ public final class MazePlacer
         }, () ->
         {
             TrapArming.applyAll(world, maze, rot, offX, offZ, baseY, sizeX, sizeZ, trapPlates);
+            // Custom builds' sign text, container contents and decorations.
+            BuildContents.apply(world, maze, rot, offX, offZ, baseY, sizeX, sizeZ);
 
             if (band > 0)
             {
@@ -150,6 +156,7 @@ public final class MazePlacer
     /** Clears a placed maze's region back to air, batched across ticks. */
     public static void clear(Scheduler scheduler, WorldAccess world, Region region, Runnable onDone)
     {
+        world.removeTaggedEntities(region, BuildContents.ENTITY_TAG);
         final PreparedPalette air = world.preparePalette(List.of("minecraft:air"), 0);
         final int minX = region.minX();
         final int minZ = region.minZ();

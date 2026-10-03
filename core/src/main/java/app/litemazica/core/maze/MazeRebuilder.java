@@ -228,7 +228,19 @@ final class MazeRebuilder
             try
             {
                 MazeSchematic fresh = source.load(seed);
-                platform.scheduler().onMain(() -> replace(maze, fresh, seed != null, "regenerated", audience));
+                platform.scheduler().onMain(() ->
+                {
+                    String note = MazeText.skippedBuildsNote(fresh.skippedBuilds());
+
+                    if (note != null)
+                    {
+                        // Resets usually run unattended, so the log gets it too.
+                        platform.logger().warning("Maze " + maze.id() + ": " + note);
+                        audience.send(MessageStyle.WARNING, note);
+                    }
+
+                    replace(maze, fresh, seed != null, "regenerated", audience);
+                });
             }
             catch (Exception e)
             {

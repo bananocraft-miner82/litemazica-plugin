@@ -50,6 +50,10 @@ public final class PropertiesConfig implements ConfigSource
             # On reset, build a brand-new layout (true) or the same maze (false).
             regen-fresh-layout=true
 
+            # Keep each maze's own layout on disk, so "same layout" resets and
+            # placing a maze again don't call the API (fresh layouts always do).
+            cache-layouts=true
+
             # How often (seconds) the scheduler checks whether a maze is due.
             regen-check-seconds=30
 

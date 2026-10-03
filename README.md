@@ -205,6 +205,7 @@ immediately rather than at release time.
 | `blend-top-reach` | `0` | Blend an **open-top** maze into the terrain above: scan this many blocks up, stripping canopy/water under open sky and capping under rock/dirt (~40 is a good "on" value). The editor's per-maze "Blend top" toggle wins; this fallback applies only to mazes with no ceiling. All changes are snapshotted, so `remove` restores them. |
 | `default-regen-minutes` | `0` | Regen interval a new maze starts with (0 = off). |
 | `regen-fresh-layout` | `true` | New maze layout on reset (`true`) or the same one (`false`). |
+| `cache-layouts` | `true` | Keep each maze's own layout in the `layouts` folder, so a "same layout" reset (or placing the maze again) doesn't call the Litemazica API. Fresh-layout resets always do. Entries for removed mazes are cleared automatically. |
 | `regen-check-seconds` | `30` | How often the scheduler checks for due resets. |
 | `editor-poll-seconds` | `4` | How often `/litemazica editor` polls for a pressed Apply. |
 

@@ -265,7 +265,7 @@ final class TrapArming
                     offX + rotX(lx, lz, rot, sizeX, sizeZ),
                     baseY + ly,
                     offZ + rotZ(lx, lz, rot, sizeX, sizeZ),
-                    spawnerConfigFor(mob));
+                    spawnerConfigFor(mob, te));
         }
     }
 
@@ -302,9 +302,35 @@ final class TrapArming
      */
     static SpawnerConfig spawnerConfigFor(String mob)
     {
+        return spawnerConfigFor(mob, Map.of());
+    }
+
+    /**
+     * A spawner arming for the given mob, using the timings the schematic stored
+     * for it where it has them (a custom build's spawner may be tuned; the web app
+     * has already clamped them to sane ranges) and vanilla's defaults otherwise.
+     * The maze's own trap spawners store only the mob, so they get the defaults.
+     * Package-private for tests.
+     */
+    static SpawnerConfig spawnerConfigFor(String mob, Map<String, Object> te)
+    {
         // Vanilla mob-spawner defaults: 4 at a time, cap 6 nearby, 16-block trigger,
         // 10–40 s between waves, 4-block spread.
-        return new SpawnerConfig(mob, 4, 6, 16, 200, 800, 4);
+        int minDelay = positive(te.get("MinSpawnDelay"), 200);
+        int maxDelay = Math.max(minDelay, positive(te.get("MaxSpawnDelay"), 800));
+        return new SpawnerConfig(mob,
+                positive(te.get("SpawnCount"), 4),
+                positive(te.get("MaxNearbyEntities"), 6),
+                positive(te.get("RequiredPlayerRange"), 16),
+                minDelay,
+                maxDelay,
+                positive(te.get("SpawnRange"), 4));
+    }
+
+    /** A stored positive whole number, or the fallback when absent or nonsensical. */
+    private static int positive(Object o, int fallback)
+    {
+        return o instanceof Number n && n.intValue() > 0 ? n.intValue() : fallback;
     }
 
     // ── pressure-plate traps ──────────────────────────────────────────────────

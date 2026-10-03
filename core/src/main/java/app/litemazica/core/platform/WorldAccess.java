@@ -89,4 +89,26 @@ public interface WorldAccess
      * cadence. A no-op if the block isn't a spawner.
      */
     void configureSpawner(int x, int y, int z, SpawnerConfig config);
+
+    /**
+     * Merges block-entity data (SNBT, e.g. {@code {front_text:{...}}}) into the
+     * block entity at the position: a custom build's sign text, chest contents,
+     * banner patterns. The same thing {@code /data merge block} does. A no-op if
+     * there's no block entity there or the data doesn't apply on this server.
+     */
+    void mergeBlockEntity(int x, int y, int z, String snbt);
+
+    /**
+     * Spawns an entity from its data (SNBT) at an exact position: a custom
+     * build's item frame, painting or armour stand. The same thing {@code /summon}
+     * does. A no-op if this server can't create it.
+     */
+    void summonEntity(String entityId, double x, double y, double z, String snbt);
+
+    /**
+     * Removes every entity carrying {@code tag} inside the region, so a rebuild or
+     * clear takes away what the previous placement spawned instead of piling
+     * up copies.
+     */
+    void removeTaggedEntities(Region region, String tag);
 }
