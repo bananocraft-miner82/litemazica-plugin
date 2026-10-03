@@ -1,5 +1,6 @@
 package app.litemazica.core.maze;
 
+import app.litemazica.core.api.LayoutCache;
 import app.litemazica.core.api.LitemazicaClient;
 import app.litemazica.core.platform.Audience;
 import app.litemazica.core.platform.MessageStyle;
@@ -7,7 +8,9 @@ import app.litemazica.core.platform.Platform;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * The entry point platforms build their command layer on. Everything the plugin
@@ -53,9 +56,32 @@ public final class MazeService
         SnapshotPolicy snapshots = new SnapshotPolicy(platform.config(), platform.dataFolder());
         BlendPolicy blend = new BlendPolicy(platform.config());
 
+        // Each maze's own layout is kept on disk, so "same layout" resets and
+        // re-placing a maze don't call the API again.
+        if (platform.config().getBoolean("cache-layouts", true))
+        {
+            client.useLayoutCache(new LayoutCache(new File(platform.dataFolder(), "layouts"), this::apiShareCodes, platform.logger()));
+        }
+
         this.builder = new MazeBuilder(platform, client, registry, locks, storage, snapshots, blend, schematics);
         this.rebuilder = new MazeRebuilder(platform, client, registry, locks, storage, snapshots, blend, schematics);
         this.editor = new EditorSessionController(platform, client, registry, locks, storage, builder, rebuilder);
+    }
+
+    /** The share codes of the mazes placed from the API (what the layout cache keeps). */
+    private Set<String> apiShareCodes()
+    {
+        Set<String> codes = new HashSet<>();
+
+        for (PlacedMaze maze : registry.all())
+        {
+            if (!maze.isFileSource())
+            {
+                codes.add(maze.shareCode());
+            }
+        }
+
+        return codes;
     }
 
     public MazeRegistry registry()

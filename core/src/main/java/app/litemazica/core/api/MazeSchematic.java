@@ -40,6 +40,11 @@ public final class MazeSchematic
     private final int entranceZ;
     private final int blockCount;
     private final int commandBlocks;
+    /**
+     * Custom builds the maze's design uses that the Litemazica server no longer
+     * has, so the maze was generated without them. 0 for files and most mazes.
+     */
+    private final int skippedBuilds;
 
     /** Block-data strings; index 0 is always {@code minecraft:air}. */
     private final List<String> palette;
@@ -48,6 +53,11 @@ public final class MazeSchematic
     private final int bitsPerBlock;
     /** Block entities; each map has int x/y/z, String id, and any extra NBT. */
     private final List<Map<String, Object>> tileEntities;
+    /**
+     * Entities (custom builds' item frames, paintings, armour stands); each map is
+     * the entity's NBT, with a region-relative {@code Pos}. Empty for most mazes.
+     */
+    private final List<Map<String, Object>> entities;
 
     /** Upper bound on {@link #clearAbove}, so a bad header can't inflate the region absurdly. */
     private static final int MAX_CLEAR_ABOVE = 512;
@@ -59,6 +69,32 @@ public final class MazeSchematic
             int blockCount, int commandBlocks,
             List<String> palette, long[] blockStates, List<Map<String, Object>> tileEntities,
             int clearAbove, String ceilingBlock)
+    {
+        this(name, dataVersion, sizeX, sizeY, sizeZ, originY, entranceX, entranceY, entranceZ, blockCount, commandBlocks,
+                palette, blockStates, tileEntities, List.of(), clearAbove, ceilingBlock);
+    }
+
+    public MazeSchematic(
+            String name, int dataVersion,
+            int sizeX, int sizeY, int sizeZ, int originY,
+            int entranceX, int entranceY, int entranceZ,
+            int blockCount, int commandBlocks,
+            List<String> palette, long[] blockStates, List<Map<String, Object>> tileEntities,
+            List<Map<String, Object>> entities,
+            int clearAbove, String ceilingBlock)
+    {
+        this(name, dataVersion, sizeX, sizeY, sizeZ, originY, entranceX, entranceY, entranceZ, blockCount, commandBlocks,
+                palette, blockStates, tileEntities, entities, clearAbove, ceilingBlock, 0);
+    }
+
+    public MazeSchematic(
+            String name, int dataVersion,
+            int sizeX, int sizeY, int sizeZ, int originY,
+            int entranceX, int entranceY, int entranceZ,
+            int blockCount, int commandBlocks,
+            List<String> palette, long[] blockStates, List<Map<String, Object>> tileEntities,
+            List<Map<String, Object>> entities,
+            int clearAbove, String ceilingBlock, int skippedBuilds)
     {
         this.name = name;
         this.dataVersion = dataVersion;
@@ -75,10 +111,12 @@ public final class MazeSchematic
         this.entranceZ = entranceZ;
         this.blockCount = blockCount;
         this.commandBlocks = commandBlocks;
+        this.skippedBuilds = Math.max(0, skippedBuilds);
         this.palette = List.copyOf(palette);
         this.blockStates = blockStates;
         this.bitsPerBlock = Math.max(2, 32 - Integer.numberOfLeadingZeros(Math.max(1, palette.size() - 1)));
         this.tileEntities = tileEntities;
+        this.entities = entities == null ? List.of() : entities;
 
         validate();
     }
@@ -192,6 +230,12 @@ public final class MazeSchematic
         return commandBlocks;
     }
 
+    /** Custom builds left out because the server no longer has them (see the field). */
+    public int skippedBuilds()
+    {
+        return skippedBuilds;
+    }
+
     public long volume()
     {
         return (long) sizeX * sizeY * sizeZ;
@@ -205,6 +249,11 @@ public final class MazeSchematic
     public List<Map<String, Object>> tileEntities()
     {
         return tileEntities;
+    }
+
+    public List<Map<String, Object>> entities()
+    {
+        return entities;
     }
 
     /** The block-data string at a region-local coordinate (index 0 = air). */

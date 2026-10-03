@@ -181,10 +181,15 @@ class MazeBuilderTest
         assertEquals("minecraft:stone", f.world.blockAt(AX, FLOOR_Y, AZ), "the maze overwrote the dirt");
 
         FakeAudience removeAudience = new FakeAudience();
+        int removalsBefore = f.world.removals.size();
         f.builder.remove(removeAudience, "m1", false);
 
         assertEquals("minecraft:dirt", f.world.blockAt(AX, FLOOR_Y, AZ), "remove put the original terrain back");
         assertTrue(removeAudience.sent(MessageStyle.SUCCESS, "terrain restored"));
+        // The builds' entities go too: the snapshot only puts blocks back, and
+        // item frames and paintings were found left floating on a real server.
+        assertEquals(removalsBefore + 1, f.world.removals.size(), "the maze's tagged entities are removed");
+        assertTrue(f.world.removals.get(f.world.removals.size() - 1).startsWith(BuildContents.ENTITY_TAG + " "));
     }
 
     // ── fixture ─────────────────────────────────────────────────────────────

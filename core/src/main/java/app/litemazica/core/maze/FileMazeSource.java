@@ -78,7 +78,7 @@ public final class FileMazeSource implements MazeSource
             return new MazeSchematic(
                     name, r.dataVersion(), r.sizeX(), r.sizeY(), r.sizeZ(), 0,
                     entranceX, entranceY, entranceZ, r.totalBlocks(), 0,
-                    r.palette(), r.blockStates(), r.tileEntities(), 0, "minecraft:stone_bricks");
+                    r.palette(), r.blockStates(), r.tileEntities(), r.entities(), 0, "minecraft:stone_bricks");
         }
         catch (IllegalArgumentException e)
         {

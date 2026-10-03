@@ -68,6 +68,11 @@ default-regen-minutes: 0
 # (false). Overridable per maze with /litemazica regen <id> <minutes> [fresh|same].
 regen-fresh-layout: true
 
+# Keep each maze's own layout on disk (in the layouts folder), so a "same
+# layout" reset or placing a maze again doesn't ask the Litemazica API to build
+# it again. Fresh-layout resets always need the API.
+cache-layouts: true
+
 # How often (seconds) the scheduler checks whether any maze is due to reset.
 # The actual reset only fires when the maze's interval has elapsed AND no player
 # is inside its region. Minimum 5.

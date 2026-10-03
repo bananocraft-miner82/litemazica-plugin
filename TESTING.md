@@ -8,9 +8,15 @@ and persistence on a live server. Run top to bottom on a throwaway world.
 1. `./gradlew build`, copy `bukkit/build/libs/Litemazica.jar` to `plugins/`.
 2. Start a Paper 1.20.1 server, then stop it (generates `plugins/Litemazica/config.yml`).
 3. Set `api-base-url` to your deployment (or `http://localhost:8787` with
-   `npm run preview` in the app repo). Start the server.
+   `npm run preview` in the app repo). Start the server. Against the app's
+   Vite dev server (`npm run dev`), use `http://[::1]:5173`: Vite listens on
+   IPv6 localhost only, and Java tries IPv4 first.
 4. Generate a share code in the Litemazica app. Keep a **small** one (~20×20,
    1 level) for most tests and one **large** one (~80×80) for the TPS check.
+   The API turns down mazes over about 40×40 cells (the free-plan limit), so
+   for the large one either run the app's Worker locally with
+   `GENERATE_MAX_WORK=0`, or download it as a `.litematic` and use
+   `/litemazica place` (see M2 below).
 5. Use a superflat creative world — placement is much easier to eyeball.
 
 Below, `<code>` is your small share code.
@@ -172,6 +178,44 @@ Fabric and NeoForge.
 | E7 | `/litemazica edit m1` while standing **inside** m1, then Apply | Rebuild refused — players inside; nothing changes. Walk out and Apply works. |
 | E8 | `/litemazica edit m1`, and before pressing Apply, `/litemazica remove m1` | After Apply, a clean "maze is gone — removed while editing" message; no orphaned blocks. |
 | E9 | `/litemazica edit m1`, Apply, and immediately `regen m1 now` / `start m1` | The concurrent op says **"busy right now"** until the in-place rebuild finishes. |
+
+## Custom builds in the maze
+
+Make a share code in the app with custom builds placed (Custom builds → Browse
+builds → add a few starters, plus a build of your own with an **item frame**,
+a **painting**, an **armour stand** and a **sign** with text). Place one build
+at each turn (0°, 90°, 180°, 270°) and one mirrored, then **Share** so the
+builds are uploaded. Use that code below.
+
+| # | Step | Expected |
+| --- | --- | --- |
+| B1 | `/litemazica generate <builds-code>` | Every build appears in its plot, turned and mirrored as in the app's 2D preview. Stairs, doors, fences and signs face the right way. |
+| B2 | Look at the item frame, painting and armour stand | All three are there, in the right spot and facing the right way at every turn. The two-wide painting sits on its wall, not half off it. |
+| B3 | Read the sign; open a starter build's loot chest | The sign has its text. A `[loot]` marker became a stocked chest, a `[light]` marker a light (or nothing, with lighting off), a `[spawner]` marker a spawner. |
+| B4 | Take the item out of the frame, knock over the armour stand, then `regen <id> now same` | Both come back. There are **no duplicates** (count them: the old ones were removed before the new ones were summoned). |
+| B5 | `/litemazica remove <id>` | All the build's entities are gone with the maze; none are left floating. |
+| B6 | A maze using a **community gallery** build (add one in Browse builds, place it, share) | Builds like any other. |
+| B7 | Make a code with a build, then delete that build from the API's database (`npx wrangler d1 execute litemazica --local --command "DELETE FROM builds WHERE id='<id>'"` in the app repo), generate | Builds **without** it, and a warning says 1 custom build is no longer stored, with how to fix it. The same warning appears in the console on a scheduled reset. |
+
+## Layout cache (`cache-layouts`)
+
+| # | Step | Expected |
+| --- | --- | --- |
+| L1 | `generate <code>` | `plugins/Litemazica/layouts/` now holds a `.litematic` and a `.properties` file for it. |
+| L2 | Point `api-base-url` at a bogus URL, `/litemazica reload`, then `regen <id> now same` | Resets fine, **with no API call**: it came from the cache. |
+| L3 | Still bogus, `regen <id> now` (fresh) | Fails cleanly (a fresh layout always needs the API); the maze is left as it was. Put the URL back. |
+| L4 | `remove <id>`, then generate a different code | The removed maze's cache files are deleted; the new one's appear. |
+| L5 | Delete one `.properties` file from `layouts/`, `regen <id> now same` | Fetches from the API again (the entry counts as missing) and rewrites both files. |
+| L6 | Set `cache-layouts: false`, reload, `regen <id> now same` with the API stopped | Fails: without the cache, every reset asks the API. Set it back. |
+
+## API messages
+
+| # | Step | Expected |
+| --- | --- | --- |
+| M1 | `generate` a ~60×60 code | Refused with "That maze is too big for the server to build…", naming `/litemazica place`. Nothing placed. |
+| M2 | Download that maze from the app (Download .litematic), put it in `schematics/`, `/litemazica place <file>` | Builds from the file. |
+| M3 | Set `api-base-url` to a site that isn't Litemazica (e.g. `https://example.com`), generate | "There's no Litemazica API at https://example.com. Check api-base-url in the config." |
+| M4 | Stop the API's Worker mid-way through a scheduled reset's fetch (or point at a server returning 500) | "The Litemazica API is having trouble right now (HTTP 5xx)…" in the console; maze intact; retried next interval. |
 
 ## Failure handling
 

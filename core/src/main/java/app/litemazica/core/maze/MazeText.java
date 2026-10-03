@@ -30,6 +30,22 @@ final class MazeText
      * (an EOF while decompressing, an interrupted request), and "reason: null"
      * tells nobody anything — fall back to the exception type.
      */
+    /** What to say when a maze was built without some of its custom builds, or null when none were left out. */
+    static String skippedBuildsNote(int skipped)
+    {
+        if (skipped <= 0)
+        {
+            return null;
+        }
+
+        return (skipped == 1 ? "1 custom build" : skipped + " custom builds")
+                + " in this maze's design " + (skipped == 1 ? "is" : "are")
+                + " no longer stored on the Litemazica server, so the maze was built without "
+                + (skipped == 1 ? "it" : "them")
+                + ". Open the maze in the web editor and apply or share it again to upload "
+                + (skipped == 1 ? "it." : "them.");
+    }
+
     static String reason(Throwable e)
     {
         return e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();

@@ -39,7 +39,7 @@ public final class SchematicParser
             String name, int dataVersion, int totalBlocks,
             int sizeX, int sizeY, int sizeZ,
             List<String> palette, long[] blockStates, List<Map<String, Object>> tileEntities,
-            int regionCount)
+            List<Map<String, Object>> entities, int regionCount)
     {
     }
 
@@ -102,10 +102,24 @@ public final class SchematicParser
             tileEntities.add(teMap);
         }
 
+        // Entities are optional (most mazes have none); positions are relative
+        // to the region's Position, which for the API's output is its own corner.
+        List<Map<String, Object>> entities = new ArrayList<>();
+
+        if (region.get("Entities") instanceof List<?> list)
+        {
+            for (Object e : list)
+            {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> eMap = (Map<String, Object>) asCompound(e, "entity");
+                entities.add(eMap);
+            }
+        }
+
         return new ParsedRegion(
                 metaName(root), asInt(root.get("MinecraftDataVersion")), metaTotalBlocks(root),
                 sizeX, sizeY, sizeZ,
-                palette, blockStates, tileEntities, regions.size());
+                palette, blockStates, tileEntities, entities, regions.size());
     }
 
     // ── palette compound -> Bukkit block-data string ───────────────────────

@@ -339,4 +339,51 @@ public final class NeoForgeWorldAccess implements WorldAccess
             return states.length;
         }
     }
+
+    // ── custom builds: block-entity data and entities, via vanilla commands ────
+    // (the same commands an operator would type, so every version reads its own NBT)
+
+    @Override
+    public void mergeBlockEntity(int x, int y, int z, String snbt)
+    {
+        run("data merge block " + x + " " + y + " " + z + " " + snbt);
+    }
+
+    @Override
+    public void summonEntity(String entityId, double x, double y, double z, String snbt)
+    {
+        run("summon " + entityId + " " + coord(x) + " " + coord(y) + " " + coord(z) + " " + snbt);
+    }
+
+    @Override
+    public void removeTaggedEntities(Region region, String tag)
+    {
+        run("kill @e[tag=" + tag
+                + ",x=" + region.minX() + ",y=" + region.minY() + ",z=" + region.minZ()
+                + ",dx=" + (region.maxX() - region.minX())
+                + ",dy=" + (region.maxY() - region.minY())
+                + ",dz=" + (region.maxZ() - region.minZ()) + "]");
+    }
+
+    /** Fixed-point, because the command parser rejects Java's 1.0E-4 style. */
+    private static String coord(double v)
+    {
+        return String.format(java.util.Locale.ROOT, "%.6f", v);
+    }
+
+    /** Runs a command as the server, silently, in this level. */
+    private void run(String command)
+    {
+        try
+        {
+            net.minecraft.server.MinecraftServer server = level.getServer();
+            net.minecraft.commands.CommandSourceStack source = server.createCommandSourceStack().withLevel(level).withSuppressedOutput();
+            server.getCommands().performPrefixedCommand(source, command);
+        }
+        catch (RuntimeException e)
+        {
+            logger.fine("Litemazica: command failed (" + e.getMessage() + "): " + command);
+        }
+    }
+
 }

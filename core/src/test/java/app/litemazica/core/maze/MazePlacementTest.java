@@ -403,6 +403,29 @@ class MazePlacementTest
     }
 
     @Test
+    void spawnerArmingUsesAStoredBuildsOwnTimings()
+    {
+        // A custom build's spawner carries its own (already clamped) timings.
+        var tuned = TrapArming.spawnerConfigFor("minecraft:parrot", Map.<String, Object>of(
+                "SpawnCount", (short) 2,
+                "MaxNearbyEntities", (short) 3,
+                "RequiredPlayerRange", (short) 8,
+                "MinSpawnDelay", (short) 400,
+                "MaxSpawnDelay", (short) 600,
+                "SpawnRange", (short) 2));
+        assertEquals(new app.litemazica.core.platform.SpawnerConfig("minecraft:parrot", 2, 3, 8, 400, 600, 2), tuned);
+
+        // The maze's own trap spawners store only the mob: vanilla defaults.
+        assertEquals(new app.litemazica.core.platform.SpawnerConfig("minecraft:zombie", 4, 6, 16, 200, 800, 4),
+                TrapArming.spawnerConfigFor("minecraft:zombie", Map.of()));
+
+        // A max delay below the min is lifted to it, never left inverted.
+        var inverted = TrapArming.spawnerConfigFor("minecraft:bat", Map.<String, Object>of(
+                "MinSpawnDelay", (short) 500, "MaxSpawnDelay", (short) 100));
+        assertEquals(500, inverted.maxSpawnDelay());
+    }
+
+    @Test
     void disarmingATrappedChestKeepsItsOrientation()
     {
         // The decoy must face and pair the same way as the trap it replaces, so only
