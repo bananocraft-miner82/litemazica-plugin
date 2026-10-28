@@ -14,14 +14,14 @@ drop in its schematics folder — no API call — see
 | Platform | Artifact | Versions |
 | --- | --- | --- |
 | Spigot / Paper / Purpur | `Litemazica.jar` | **1.20 and newer — one jar for all of them** |
-| Fabric (server-side) | `Litemazica-fabric-mc<version>.jar` | one jar **per** Minecraft version |
-| NeoForge (server-side) | `Litemazica-neoforge-mc<version>.jar` | one jar **per** Minecraft version |
+| Fabric (server-side) | `Litemazica-fabric-mc<version>.jar` | one jar **per** Minecraft version: 1.20.1, 1.21.1, 26.2, 26.3 |
+| NeoForge (server-side) | `Litemazica-neoforge-mc<version>.jar` | one jar **per** Minecraft version: 1.21.1, 26.2, 26.3 |
 
 The **Bukkit plugin** uses no NMS or server internals, so it doesn't need
 per-version builds. It compiles against the *oldest* API it supports (Spigot
 1.20.1); Bukkit keeps old methods around, so that jar runs on later servers too.
-CI re-compiles the same source against 1.20.1, 1.20.6, 1.21 and 1.21.4 to keep
-that claim honest.
+CI re-compiles the same source against 1.20.1, 1.20.6, 1.21, 1.21.4, 1.21.11,
+26.2 and 26.3 to keep that claim honest.
 
 The floor is 1.20 because block rotation (`BlockData.rotate`) — what keeps
 stairs, torches and chests facing the right way when a maze is rotated to your
@@ -37,10 +37,12 @@ Neither loader has a permission system, so the Bukkit permission split maps onto
 vanilla op levels: `start` is available to everyone, every other subcommand
 requires op level 2.
 
-The two mods share all their logic through `core` but not their source: Fabric
-uses Yarn mappings and NeoForge uses Mojang mappings, so the same call is spelled
-differently in each (`ServerWorld` vs `ServerLevel`, `BlockRotation` vs
-`Rotation`). Each adapter is about 300 lines; everything below it is shared.
+The two mods share all their logic through `core`. Up to 1.21 they don't share
+their source: Fabric uses Yarn mappings and NeoForge uses Mojang mappings, so the
+same call is spelled differently in each (`ServerWorld` vs `ServerLevel`,
+`BlockRotation` vs `Rotation`). From 26.1 Minecraft ships with its own names and
+there is no Yarn, so both loaders see the same classes: their 26.x builds share
+one adapter (`vanilla/src/mc26`) and each adds only a small entry point.
 
 ## Layout
 
@@ -51,9 +53,11 @@ A Gradle multi-module build, so the same logic can back several server platforms
 | `core` | Everything the plugin does, minus the bits that must touch a server: API client, NBT reading, schematic decoding, placement, terrain snapshots, regeneration scheduling, persistence. **No Minecraft dependency at all** — and none may be added. |
 | `bukkit` | The Spigot/Paper/Purpur adapter: implements the platform interfaces, plus the command layer. |
 | `fabric` | The Fabric server-side mod: the same interfaces over `ServerWorld`, plus a Brigadier command layer. |
-| `neoforge` | The NeoForge server-side mod: the same again over `ServerLevel`, in Mojang mappings. |
+| `fabric26` | The Fabric mod for 26.x: Loom without remapping, over the shared 26.x adapter. |
+| `neoforge` | The NeoForge server-side mod: the same again over `ServerLevel`, in Mojang mappings (`src/mc1.21`), or over the shared adapter for 26.x (`src/mc26`). |
+| `vanilla` | Not a module: the 26.x adapter source both loaders compile in (`src/mc26`). |
 
-About 70% of the code sits in `core`, and all 180 unit tests run there — no server
+About 70% of the code sits in `core`, and all 211 unit tests run there — no server
 needed. A new platform (Fabric, NeoForge) implements a handful of interfaces in
 `app.litemazica.core.platform` and supplies a command layer; it does not
 re-implement placement, snapshots or scheduling.
@@ -75,7 +79,9 @@ Bukkit use its per-type workaround while a mod can pass real NBT.
 
 ## Build
 
-Requires JDK 17 or newer; the Gradle wrapper handles Gradle itself.
+Requires JDK 25 (Fabric's Loom for 26.x only runs on it); the Gradle wrapper
+handles Gradle itself and downloads the JDK 21 the 1.21 NeoForge build asks for.
+The Bukkit jar is still Java 17 bytecode, so it runs on 1.20 servers.
 
 ```bash
 ./gradlew build
@@ -86,11 +92,12 @@ Artifacts:
 | File | For |
 | --- | --- |
 | `bukkit/build/libs/Litemazica.jar` | Spigot/Paper/Purpur `plugins/` |
-| `fabric/build/libs/Litemazica-fabric-mc<version>-<v>.jar` | Fabric `mods/` |
+| `fabric/build/libs/Litemazica-fabric-mc<version>-<v>.jar` | Fabric `mods/` (1.20, 1.21) |
+| `fabric26/build/libs/Litemazica-fabric-mc<version>-<v>.jar` | Fabric `mods/` (26.x) |
 | `neoforge/build/libs/Litemazica-neoforge-mc<version>-<v>.jar` | NeoForge `mods/` |
 
-The mod modules need a JDK 21 toolchain; Gradle downloads one automatically if
-you don't have it.
+The mod modules need a JDK 21 (1.21) or 25 (26.x) toolchain; Gradle downloads
+one automatically if you don't have it.
 
 To build a mod against a different Minecraft version:
 
@@ -100,6 +107,16 @@ To build a mod against a different Minecraft version:
 
 ```bash
 ./gradlew :neoforge:build -PneoForgeVersion=21.4.140 -PneoMinecraftVersion=1.21.4
+```
+
+For 26.x, Fabric builds in its own module (no Yarn):
+
+```bash
+./gradlew :fabric26:build -PminecraftVersion=26.2 -PfabricApiVersion=0.161.0+26.2
+```
+
+```bash
+./gradlew :neoforge:build -PneoForgeVersion=26.2.0.93 -PneoMinecraftVersion=26.2
 ```
 
 ## Tests
@@ -166,8 +183,23 @@ fabric/src/mc1.21/java/   FabricWorldAccess for 1.21.x
 ```
 
 The build picks the directory matching the target's version series, so adding a
-series means adding `src/mc<series>/java` with the class that drifted — not a new
-module. CI builds every target on every pull request, so a break shows up
+series means adding `src/mc<series>/java` with the class that drifted, not a new
+module.
+
+26.x changed far more (renamed ids, a new permission check, new click and hover
+events, a new way to load block entities), and from 26.1 Minecraft ships with its
+own names, so Fabric has no Yarn for it. Both loaders now see the same classes,
+so their 26.x builds share one adapter:
+
+```
+vanilla/src/mc26/java/    the 26.x adapter: platform, audience, world, commands
+fabric26/                 Fabric 26.x: Loom without remapping, entry point only
+neoforge/src/mc1.21/java/ NeoForge 1.21.x: its own adapter, as before
+neoforge/src/mc26/java/   NeoForge 26.x: entry point only
+```
+
+Each Fabric target in `mc-targets.json` names its module (`fabric` or
+`fabric26`). CI builds every target on every pull request, so a break shows up
 immediately rather than at release time.
 
 ## Install
@@ -209,7 +241,7 @@ immediately rather than at release time.
 | `regen-check-seconds` | `30` | How often the scheduler checks for due resets. |
 | `editor-poll-seconds` | `4` | How often `/litemazica editor` polls for a pressed Apply. |
 
-> The `?seed=` / `?reset=off` overrides the plugin relies on for regeneration,
+> The `?seed=`, `?reset=off` and `?dv=` (server version) overrides the plugin relies on,
 > and the `/api/editor/*` endpoints behind `/litemazica editor`, live in the
 > Litemazica Worker. If you point `api-base-url` at your own deployment, deploy a
 > build that includes them (and run its D1 migrations).
@@ -228,7 +260,7 @@ permissions plugin if you want to gate entry behind a rank.
 | `/litemazica editor` | `editor` (op) | Open the web editor, design a maze, and build it where you stand by pressing **Apply** — no code to type. |
 | `/litemazica edit <id>` | `edit` (op) | Re-open a placed maze in the web editor with its current design loaded; **Apply** rebuilds it in place. API mazes only. |
 | `/litemazica start [id]` | `start` (all) | Teleport yourself to a maze entrance, facing in. |
-| `/litemazica generate <code> [x y z] [name]` | `generate` (op) | Build a maze with its entrance at your feet (or at `x y z`), facing the way you look. Optionally name it. |
+| `/litemazica generate <code> [x y z] [name]` | `generate` (op) | Build a maze with its entrance at your feet (or at `x y z`), facing the way you look. Optionally name it. A whole share link works in place of the code (in quotes on Fabric and NeoForge). |
 | `/litemazica place <file> [x y z] [name]` | `place` (op) | Build a maze from a `.litematic` in the schematics folder, anchored and facing like `generate`. |
 | `/litemazica files` | `files` (op) | List the `.litematic` files available to `place`. |
 | `/litemazica list` | `list` (op) | List placed mazes with their region and regen settings. |
@@ -443,6 +475,27 @@ maze blend into surrounding terrain instead:
   Everything the blend changes is inside the maze footprint plus a small skirt and
   the band above it — exactly what the terrain snapshot covers — so `remove` puts
   the trees back and takes the ceiling caps away, restoring the world as it was.
+
+## Built for your server's version
+
+The plugin and mods tell the Litemazica API which Minecraft version the server
+runs, and the maze is built for that version, whatever version its share code
+names. Sign text, for one, changed form in 1.20 and again in 1.21.5, and the
+plugin hands sign text and names to the game exactly as the API built them.
+
+Before a maze goes in, the operator is told about anything that still won't
+fit: blocks the server doesn't have (they're placed as air), and, for a
+`.litematic` placed with `/litemazica place`, sign text stored for a version on
+the other side of one of those changes (it may show as code rather than words).
+
+## Flooded mazes
+
+An underwater maze needs nothing special from you, but the plugin places it with
+care: water, bubble columns, kelp and seagrass go in after every other block, so
+none of it can run into a spot that isn't built yet. A flooded maze is cleared
+from the top down before its terrain is restored or a new layout goes in, so no
+water is left beside the dry parts. Its spawners keep the water mobs the API
+baked in (drowned, guardians).
 
 ## How regeneration works
 

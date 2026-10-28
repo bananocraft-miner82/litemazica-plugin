@@ -197,6 +197,53 @@ builds are uploaded. Use that code below.
 | B6 | A maze using a **community gallery** build (add one in Browse builds, place it, share) | Builds like any other. |
 | B7 | Make a code with a build, then delete that build from the API's database (`npx wrangler d1 execute litemazica --local --command "DELETE FROM builds WHERE id='<id>'"` in the app repo), generate | Builds **without** it, and a warning says 1 custom build is no longer stored, with how to fix it. The same warning appears in the console on a scheduled reset. |
 
+## Underwater mazes
+
+Make a share code in the app with **Underwater** on: a ceiling, air bells and
+decoy bells, door pockets, kelp, a magma or soul sand floor somewhere (bubble
+columns), a spawner room, the conduit shrine and the rules sign. Make a second
+one with the ceiling off and a water depth below the wall tops.
+
+| # | Step | Expected |
+| --- | --- | --- |
+| U1 | `generate <underwater-code>` | Builds. **No water outside the walls**, and none in the dry spots (bells, door pockets, kept-dry builds). |
+| U2 | Swim under an air bell (a slab in the ceiling) | You can breathe there: the air bar refills. A decoy bell (waterlogged slab) gives no air. |
+| U3 | Read the rules sign at the entrance | Four crossed-out red lines in your game's language, **not** JSON code. |
+| U4 | Wait in the spawner room | Drowned or guardians spawn, not land mobs. |
+| U5 | Ride a bubble column; walk over the kelp | Soul sand lifts, magma pulls down; the kelp stays put. |
+| U6 | `regen <id> now same`, three times, then `regen <id> now` (fresh) | Each time: still no water outside the walls or in the dry spots. |
+| U7 | `remove <id>` | The terrain comes back with **no water left** where the maze was. |
+| U8 | `generate <open-top-code>` under a hillside with blend on | The water stops short of the wall tops; buried parts are capped; nothing floods out. |
+
+## Server version
+
+| # | Step | Expected |
+| --- | --- | --- |
+| V1 | On a 1.21.5 or later server, `generate` a code whose app version is 1.21 or older, with a sign in a custom build | Built for the server's version: the sign reads as text. The API log shows the request with `dv=<the server's data version>`. |
+| V2 | A code using a block the server doesn't have (e.g. poplar planks, 26.3, on a 1.21 server) | A warning names the block and says it's placed as air; the maze still builds. |
+| V3 | `/litemazica place` a `.litematic` downloaded for 1.21, with a sign, on a 26.x server | A warning that its sign text may show as code. |
+| V4 | Upgrade the server (or change its version), `regen <id> now same` | The layout is fetched again, not read from the cache. |
+
+## Share links
+
+| # | Step | Expected |
+| --- | --- | --- |
+| S1 | Bukkit: `/litemazica generate https://litemazica.app/?s=<code>` | Same as `generate <code>`. |
+| S2 | Fabric/NeoForge: `/litemazica generate "https://litemazica.app/?s=<code>"` (quoted) | Same as `generate <code>`. Without quotes the command doesn't parse. |
+
+## Fabric and NeoForge on 26.x
+
+Repeat the checklist's core steps (1, a build, `start`, a reset, `remove`) on a
+26.2 or 26.3 server with each mod jar (`fabric26/build/libs`, and
+`neoforge/build/libs` built with `-PneoMinecraftVersion=26.3`).
+
+| # | Step | Expected |
+| --- | --- | --- |
+| F1 | Server start | The jar loads (it declares that exact Minecraft line) and logs the API base URL. |
+| F2 | As a non-op: `/litemazica generate <code>`; as an op: the same | Refused, then builds. Only op level 2 and up get the admin subcommands. |
+| F3 | A maze whose top reaches the build limit | Its top layer is placed, not cut off one short. |
+| F4 | A code with a chest, a spawner and a sign, then `remove` | Chest loot, spawner mob and sign text all work; the terrain's own chests come back with their contents. |
+
 ## Layout cache (`cache-layouts`)
 
 | # | Step | Expected |
@@ -229,4 +276,6 @@ builds are uploaded. Use that code below.
 ## Notes
 
 - Placement writes blocks with physics off, so nothing should cascade or pop off.
+  Water is the exception that still flows once placed, which is why it goes in
+  last (see U1 and U6).
 - Everything is `plugins/Litemazica/` — delete that folder to reset state.

@@ -32,4 +32,14 @@ public interface Platform
 
     /** @return null when that world isn't loaded. */
     WorldAccess world(String worldName);
+
+    /**
+     * The DataVersion of the Minecraft this server runs (3465 for 1.20.1), which
+     * mazes are built for; 0 when it can't be told, and each share code's own
+     * target is used.
+     */
+    default int dataVersion()
+    {
+        return 0;
+    }
 }

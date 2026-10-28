@@ -26,8 +26,10 @@ import java.util.logging.Logger;
  * costs, down. Fresh-layout resets still ask the API, since each needs a new
  * maze generated.
  *
- * <p>Files live in one folder, named by a hash of the share code:
- * {@code <hash>.litematic} and {@code <hash>.properties}. Each store drops the
+ * <p>Files live in one folder, named by a hash of the share code and the
+ * server's version (a layout is built for the version the server runs, so an
+ * upgraded server fetches its layouts again): {@code <hash>.litematic} and
+ * {@code <hash>.properties}. Each store drops the
  * entries of share codes no placed maze uses any more. Anything unreadable is
  * treated as missing, so the worst a damaged cache can do is cost an API call.
  */
@@ -37,16 +39,27 @@ public final class LayoutCache
     private static final String HEADER = "header.";
 
     private final File dir;
+    /** The server's DataVersion the layouts are built for; 0 when not known. */
+    private final int dataVersion;
     private final Supplier<Set<String>> liveCodes;
     private final Logger logger;
 
-    /**
-     * @param liveCodes the share codes placed mazes use now; entries for any
-     *                  other code are deleted on the next store.
-     */
+    /** A cache for a server whose version isn't known (layouts built for each share code's own). */
     public LayoutCache(File dir, Supplier<Set<String>> liveCodes, Logger logger)
     {
+        this(dir, 0, liveCodes, logger);
+    }
+
+    /**
+     * @param dataVersion the server's DataVersion, which the layouts are built
+     *                    for (0 when not known)
+     * @param liveCodes   the share codes placed mazes use now; entries for any
+     *                    other code are deleted on the next store.
+     */
+    public LayoutCache(File dir, int dataVersion, Supplier<Set<String>> liveCodes, Logger logger)
+    {
         this.dir = dir;
+        this.dataVersion = Math.max(0, dataVersion);
         this.liveCodes = liveCodes;
         this.logger = logger;
     }
@@ -54,7 +67,7 @@ public final class LayoutCache
     /** The cached layout for a share code, or null if there isn't a good one. */
     public synchronized RawLayout get(String code)
     {
-        String key = key(code);
+        String key = entryKey(code);
         File body = new File(dir, key + ".litematic");
         File meta = new File(dir, key + ".properties");
 
@@ -99,7 +112,7 @@ public final class LayoutCache
     /** Keeps a layout for its share code, replacing any earlier one. Failures are logged, never thrown. */
     public synchronized void put(String code, RawLayout layout)
     {
-        String key = key(code);
+        String key = entryKey(code);
 
         try
         {
@@ -143,11 +156,11 @@ public final class LayoutCache
         }
 
         Set<String> wanted = new HashSet<>();
-        wanted.add(key(keep));
+        wanted.add(entryKey(keep));
 
         for (String code : liveCodes.get())
         {
-            wanted.add(key(code));
+            wanted.add(entryKey(code));
         }
 
         for (File file : files)
@@ -161,6 +174,12 @@ public final class LayoutCache
                 logger.fine("Could not delete stale cached layout " + name);
             }
         }
+    }
+
+    /** The key a share code's layout is filed under on this server. */
+    String entryKey(String code)
+    {
+        return key(dataVersion > 0 ? code + "@" + dataVersion : code);
     }
 
     /** A file-name-safe key for a share code: the start of its SHA-256. */

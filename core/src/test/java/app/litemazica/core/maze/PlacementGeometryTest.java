@@ -49,7 +49,7 @@ class PlacementGeometryTest
         long[] states = new long[(int) (((long) SIZE_X * SIZE_Y * SIZE_Z * 2 + 63) / 64) + 1];
 
         return new MazeSchematic("test", 3465, SIZE_X, SIZE_Y, SIZE_Z, originY,
-                ENTRANCE_X, entranceY, ENTRANCE_Z, 0, 0,
+                ENTRANCE_X, entranceY, ENTRANCE_Z, 0,
                 List.of("minecraft:air"), states, List.of(), 0, "minecraft:stone_bricks");
     }
 

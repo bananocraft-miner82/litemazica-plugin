@@ -54,6 +54,18 @@ class LitemazicaClientTest
     }
 
     @Test
+    void parseTopShaftsKeepsOnlyUpwardShafts()
+    {
+        java.util.List<int[]> shafts = LitemazicaClient.parseTopShafts("4,7,up;9,2,down; 1 , 3 , up;x,y,up;5,5");
+
+        assertEquals(2, shafts.size(), "downward and malformed entries are skipped");
+        assertArrayEquals(new int[]{4, 7}, shafts.get(0));
+        assertArrayEquals(new int[]{1, 3}, shafts.get(1));
+        assertTrue(LitemazicaClient.parseTopShafts("").isEmpty());
+        assertTrue(LitemazicaClient.parseTopShafts(null).isEmpty());
+    }
+
+    @Test
     void describesAFailedRequestInPlainWords()
     {
         String base = "https://litemazica.app";

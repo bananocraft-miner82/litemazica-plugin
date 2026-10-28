@@ -2,6 +2,7 @@ package app.litemazica.core.maze;
 
 import app.litemazica.core.api.LayoutCache;
 import app.litemazica.core.api.LitemazicaClient;
+import app.litemazica.core.api.ShareCodes;
 import app.litemazica.core.platform.Audience;
 import app.litemazica.core.platform.MessageStyle;
 import app.litemazica.core.platform.Platform;
@@ -56,11 +57,15 @@ public final class MazeService
         SnapshotPolicy snapshots = new SnapshotPolicy(platform.config(), platform.dataFolder());
         BlendPolicy blend = new BlendPolicy(platform.config());
 
+        // Mazes are built for the version this server runs, whatever the share code's.
+        client.buildFor(platform.dataVersion());
+
         // Each maze's own layout is kept on disk, so "same layout" resets and
         // re-placing a maze don't call the API again.
         if (platform.config().getBoolean("cache-layouts", true))
         {
-            client.useLayoutCache(new LayoutCache(new File(platform.dataFolder(), "layouts"), this::apiShareCodes, platform.logger()));
+            client.useLayoutCache(new LayoutCache(new File(platform.dataFolder(), "layouts"), platform.dataVersion(),
+                    this::apiShareCodes, platform.logger()));
         }
 
         this.builder = new MazeBuilder(platform, client, registry, locks, storage, snapshots, blend, schematics);
@@ -135,10 +140,11 @@ public final class MazeService
 
     // ── build / remove (delegated to MazeBuilder) ────────────────────────────
 
+    /** @param code a share code, or a share link to take the code from. */
     public void generate(Audience audience, String code, String worldName,
                          int ax, int ay, int az, float yaw, String exemptName, String name)
     {
-        builder.generate(audience, code, worldName, ax, ay, az, yaw, exemptName, name);
+        builder.generate(audience, ShareCodes.extract(code), worldName, ax, ay, az, yaw, exemptName, name);
     }
 
     public void place(Audience audience, String fileName, String worldName,

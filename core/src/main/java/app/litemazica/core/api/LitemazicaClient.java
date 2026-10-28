@@ -11,6 +11,8 @@ import java.net.http.HttpResponse;
 import java.net.http.HttpTimeoutException;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.TreeMap;
@@ -40,6 +42,8 @@ public class LitemazicaClient
     private final Duration timeout;
     private final HttpClient http;
     private volatile LayoutCache layouts;
+    /** The server's DataVersion, which mazes are built for; 0 leaves it to each share code. */
+    private volatile int dataVersion;
 
     public LitemazicaClient(String baseUrl, int timeoutSeconds)
     {
@@ -64,6 +68,17 @@ public class LitemazicaClient
         return baseUrl;
     }
 
+    /**
+     * Have mazes built for the version this server runs ({@code 0} leaves it to
+     * each share code). Placement writes blocks and block-entity data as the
+     * API gives them, with nothing to convert them, so they must match the
+     * server: sign text, for one, changed form in 1.21.5.
+     */
+    public void buildFor(int dataVersion)
+    {
+        this.dataVersion = Math.max(0, dataVersion);
+    }
+
     /** Keep each share code's own layout on disk from now on (null stops caching). */
     public void useLayoutCache(LayoutCache cache)
     {
@@ -79,8 +94,9 @@ public class LitemazicaClient
     /**
      * As {@link #fetch(String)}, but overriding the maze seed — pass a fresh
      * random seed to get a new layout in the same footprint (scheduled regen).
-     * Always requests {@code reset=off}: the plugin regenerates mazes itself, so
-     * the app's command-block reset station would just be dead blocks.
+     * Always requests {@code reset=off}: the plugin regenerates mazes itself. The
+     * hosted API no longer has the command-block reset station it switched off,
+     * but a self-hosted one from before then would still add it without this.
      */
     public MazeSchematic fetch(String shareCode, String seedOverride) throws IOException, InterruptedException
     {
@@ -124,6 +140,11 @@ public class LitemazicaClient
         if (seedOverride != null)
         {
             url += "&seed=" + URLEncoder.encode(seedOverride, StandardCharsets.UTF_8);
+        }
+
+        if (dataVersion > 0)
+        {
+            url += "&dv=" + dataVersion;
         }
 
         HttpRequest request = HttpRequest.newBuilder(URI.create(url))
@@ -347,21 +368,22 @@ public class LitemazicaClient
         int clearAbove = headerInt(response, "x-litemazica-clear-above", 0);
         // The material a buried section is capped with — the maze's own ceiling.
         String ceilingBlock = header(response, "x-litemazica-ceiling", "minecraft:stone_bricks");
-        int commandBlocks = headerInt(response, "x-litemazica-command-blocks", 0);
         int blockCount = region.totalBlocks() != 0
                 ? region.totalBlocks()
                 : headerInt(response, "x-litemazica-blocks", 0);
         int[] entrance = parseTriple(header(response, "x-litemazica-entrance", "0,0,0"));
         // Custom builds the design names that the server no longer has.
         int skippedBuilds = headerInt(response, "x-litemazica-skipped-builds", 0);
+        // Shaft entrances/exits the player carries on above the maze.
+        List<int[]> topShafts = parseTopShafts(header(response, "x-litemazica-shafts", ""));
 
         try
         {
             return new MazeSchematic(
                     name, dataVersion, region.sizeX(), region.sizeY(), region.sizeZ(), originY,
-                    entrance[0], entrance[1], entrance[2], blockCount, commandBlocks,
+                    entrance[0], entrance[1], entrance[2], blockCount,
                     region.palette(), region.blockStates(), region.tileEntities(), region.entities(), clearAbove, ceilingBlock,
-                    skippedBuilds);
+                    skippedBuilds, topShafts);
         }
         catch (IllegalArgumentException e)
         {
@@ -404,6 +426,42 @@ public class LitemazicaClient
             catch (NumberFormatException ignored)
             {
                 out[i] = 0;
+            }
+        }
+
+        return out;
+    }
+
+    /**
+     * The columns of shafts that leave through the maze's top, from the
+     * {@code x-litemazica-shafts} header ({@code "x,z,up;x,z,down"}, region-local).
+     * Downward shafts and anything malformed are skipped.
+     */
+    static List<int[]> parseTopShafts(String header)
+    {
+        List<int[]> out = new ArrayList<>();
+
+        if (header == null)
+        {
+            return out;
+        }
+
+        for (String entry : header.split(";"))
+        {
+            String[] parts = entry.split(",");
+
+            if (parts.length != 3 || !parts[2].trim().equals("up"))
+            {
+                continue;
+            }
+
+            try
+            {
+                out.add(new int[]{Integer.parseInt(parts[0].trim()), Integer.parseInt(parts[1].trim())});
+            }
+            catch (NumberFormatException ignored)
+            {
+                // a malformed entry is simply left out
             }
         }
 

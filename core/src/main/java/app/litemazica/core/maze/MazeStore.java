@@ -69,6 +69,7 @@ public final class MazeStore
             props.setProperty(p + "maxZ", Integer.toString(m.maxZ()));
             props.setProperty(p + "regenMinutes", Integer.toString(m.regenMinutes()));
             props.setProperty(p + "fresh", Boolean.toString(m.freshLayout()));
+            props.setProperty(p + "fluids", Boolean.toString(m.holdsFluids()));
             props.setProperty(p + "placedAt", Long.toString(m.placedAtEpochMs()));
             props.setProperty(p + "lastRegen", Long.toString(m.lastRegenEpochMs()));
         }
@@ -165,7 +166,7 @@ public final class MazeStore
                     intAt(props, p + "minX"), intAt(props, p + "minY"), intAt(props, p + "minZ"),
                     intAt(props, p + "maxX"), intAt(props, p + "maxY"), intAt(props, p + "maxZ"));
 
-            out.add(new PlacedMaze(
+            PlacedMaze maze = new PlacedMaze(
                     id, world, source, reference,
                     intAt(props, p + "anchorX"), intAt(props, p + "anchorY"), intAt(props, p + "anchorZ"),
                     floatAt(props, p + "yaw"),
@@ -173,7 +174,10 @@ public final class MazeStore
                     intAt(props, p + "regenMinutes"),
                     Boolean.parseBoolean(props.getProperty(p + "fresh", "false")),
                     longAt(props, p + "placedAt"),
-                    longAt(props, p + "lastRegen")));
+                    longAt(props, p + "lastRegen"));
+            // Missing from mazes placed before flooded ones existed: those held none.
+            maze.setHoldsFluids(Boolean.parseBoolean(props.getProperty(p + "fluids", "false")));
+            out.add(maze);
         }
 
         return out;

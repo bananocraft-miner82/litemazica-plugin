@@ -16,7 +16,7 @@ final class TestMazes
     {
         int[] voxels = {1, 1, 1, 1, 1, 1, 1, 1, 1};
         return new MazeSchematic("test", 3465, 3, 1, 3, 0,
-                1, 0, 0, voxels.length, 0,
+                1, 0, 0, voxels.length,
                 List.of("minecraft:air", "minecraft:stone"), pack(voxels, 2), List.of(),
                 0, "minecraft:stone_bricks");
     }

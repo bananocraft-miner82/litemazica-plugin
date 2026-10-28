@@ -38,7 +38,7 @@ class BuildContentsTest
     private static MazeSchematic maze(List<Map<String, Object>> tileEntities, List<Map<String, Object>> entities)
     {
         // 4 wide (x) × 1 tall × 2 deep (z), all air.
-        return new MazeSchematic("test", 3465, 4, 1, 2, 0, 0, 0, 0, 0, 0,
+        return new MazeSchematic("test", 3465, 4, 1, 2, 0, 0, 0, 0, 0,
                 List.of("minecraft:air"), new long[1], tileEntities, entities, 0, "minecraft:stone_bricks");
     }
 
@@ -121,7 +121,7 @@ class BuildContentsTest
     void placementClearsTaggedEntitiesThenMergesAndSpawns()
     {
         FakeWorld world = new FakeWorld();
-        MazeSchematic m = new MazeSchematic("test", 3465, 1, 2, 1, 0, 0, 0, 0, 1, 0,
+        MazeSchematic m = new MazeSchematic("test", 3465, 1, 2, 1, 0, 0, 0, 0, 1,
                 List.of("minecraft:air", "minecraft:oak_sign"), new long[]{0b0001},
                 List.of(map("id", "minecraft:sign", "x", 0, "y", 0, "z", 0, "Text1", "\"Hi\"")),
                 List.of(map("id", "minecraft:armor_stand", "Pos", List.of(0.5, 1.0, 0.5))),

@@ -158,6 +158,11 @@ final class MazeBuilder
             return;
         }
 
+        for (String note : MazePlacer.versionNotes(world, maze, platform.dataVersion()))
+        {
+            audience.send(MessageStyle.WARNING, note);
+        }
+
         String id = name != null ? name : registry.nextId();
         int interval = platform.config().getInt("default-regen-minutes", 0);
         // A file source can't vary its layout, so "fresh" never applies — pin it
@@ -173,6 +178,7 @@ final class MazeBuilder
         // before a single block is written.
         PlacedMaze placed = new PlacedMaze(id, world.name(), source.type(), source.reference(), ax, ay, az, yaw,
                 plannedRegion, interval, fresh, now, now);
+        placed.setHoldsFluids(MazePlacer.holdsFluids(maze.palette()));
 
         // Reserve the maze before the multi-tick snapshot + placement starts, for
         // two reasons. Registering it makes the overlap and name checks above
@@ -307,7 +313,7 @@ final class MazeBuilder
         // otherwise be left floating where their walls were.
         world.removeTaggedEntities(maze.region(), BuildContents.ENTITY_TAG);
 
-        TerrainSnapshot.restore(platform.scheduler(), world, snapshots.dir(mazeId), platform.logger(), () ->
+        Runnable restore = () -> TerrainSnapshot.restore(platform.scheduler(), world, snapshots.dir(mazeId), platform.logger(), () ->
         {
             platform.scheduler().async(() -> TerrainSnapshot.delete(snapshots.dir(mazeId)));
             deregister.run();
@@ -317,6 +323,10 @@ final class MazeBuilder
             audience.send(MessageStyle.WARNING, "That snapshot could not be read — clearing to air instead.");
             clearToAir.run();
         });
+
+        // The terrain goes back a chunk at a time, so a flooded maze is drained
+        // first: none of its water is left beside the terrain already put back.
+        MazePlacer.drainThen(platform.scheduler(), world, maze, restore);
     }
 
     // ── shared fetch ─────────────────────────────────────────────────────────

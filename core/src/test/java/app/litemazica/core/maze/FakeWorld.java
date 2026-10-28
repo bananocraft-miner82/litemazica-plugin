@@ -6,6 +6,7 @@ import app.litemazica.core.platform.PreparedPalette;
 import app.litemazica.core.platform.SpawnerConfig;
 import app.litemazica.core.platform.WorldAccess;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -24,6 +25,10 @@ final class FakeWorld implements WorldAccess
     private final Set<Long> physicsCleared = new HashSet<>();
     private final Map<Long, List<DispenserItem>> dispensers = new HashMap<>();
     private final Map<Long, SpawnerConfig> spawners = new HashMap<>();
+    /** Blocks this "server" doesn't have, which a prepared palette reports. */
+    final Set<String> missingBlocks = new HashSet<>();
+    /** Every palette write, in order, as "block@x,y,z". */
+    final List<String> writeOrder = new ArrayList<>();
 
     FakeWorld()
     {
@@ -91,7 +96,7 @@ final class FakeWorld implements WorldAccess
     @Override
     public PreparedPalette preparePalette(List<String> palette, int quarterTurnsClockwise)
     {
-        return new ListPalette(palette);
+        return new ListPalette(palette, palette.stream().filter(missingBlocks::contains).toList());
     }
 
     @Override
@@ -100,6 +105,7 @@ final class FakeWorld implements WorldAccess
         String block = ((ListPalette) palette).blocks.get(index);
         blocks.put(key(x, y, z), block);
         written.put(key(x, y, z), true);
+        writeOrder.add(block + "@" + x + "," + y + "," + z);
     }
 
     @Override
@@ -194,16 +200,24 @@ final class FakeWorld implements WorldAccess
     private static final class ListPalette implements PreparedPalette
     {
         private final List<String> blocks;
+        private final List<String> unknown;
 
-        ListPalette(List<String> blocks)
+        ListPalette(List<String> blocks, List<String> unknown)
         {
             this.blocks = blocks;
+            this.unknown = unknown;
         }
 
         @Override
         public int size()
         {
             return blocks.size();
+        }
+
+        @Override
+        public List<String> unknownBlocks()
+        {
+            return unknown;
         }
     }
 }
