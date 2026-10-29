@@ -291,11 +291,20 @@ final class MazeRebuilder
             return;
         }
 
+        // An edit can bring in new blocks; a reset uses the ones the first build did, already reported then.
+        if (!"regenerated".equals(action))
+        {
+            for (String note : MazePlacer.versionNotes(world, fresh, platform.dataVersion()))
+            {
+                audience.send(MessageStyle.WARNING, note);
+            }
+        }
+
         int clearAbove = blend.clearAboveFor(fresh);
         Region newRegion = PlacementGeometry.regionFor(fresh, maze.anchorX(), maze.anchorY(), maze.anchorZ(), maze.yaw(), clearAbove);
         Runnable placeIt = () -> MazePlacer.place(platform.scheduler(), world, fresh,
                 maze.anchorX(), maze.anchorY(), maze.anchorZ(), maze.yaw(), clearAbove,
-                region -> finishRegen(maze, region, wasFresh, action, audience));
+                region -> finishRegen(maze, fresh, region, wasFresh, action, audience));
 
         final File dir = snapshots.dir(maze.id());
         final Region newSnapshotRegion = PlacementGeometry.snapshotRegionFor(newRegion, clearAbove);
@@ -305,6 +314,10 @@ final class MazeRebuilder
             MazePlacer.clear(platform.scheduler(), world, maze.region(), placeIt);
             return;
         }
+
+        // A flooded maze is cleared before anything goes in its place, so none of
+        // its water is left beside the new one's dry spots.
+        Runnable drainAndPlace = () -> MazePlacer.drainThen(platform.scheduler(), world, maze, placeIt);
 
         Runnable clearAndPlace = () -> MazePlacer.clear(platform.scheduler(), world, maze.region(), placeIt);
 
@@ -330,29 +343,33 @@ final class MazeRebuilder
                 if (sr.equals(newSnapshotRegion))
                 {
                     // Same footprint: placement rewrites every voxel in it, so
-                    // there's nothing to clear and the snapshot stays accurate.
-                    placeIt.run();
+                    // there's nothing to clear (but a flooded maze's water) and
+                    // the snapshot stays accurate.
+                    drainAndPlace.run();
                     return;
                 }
 
                 // A fresh layout moved the footprint. Put the original terrain
                 // back, replace the snapshot with one of the new footprint —
                 // pristine again — then build, so a later remove still cleans up.
-                TerrainSnapshot.restore(platform.scheduler(), world, dir, platform.logger(),
+                MazePlacer.drainThen(platform.scheduler(), world, maze, () -> TerrainSnapshot.restore(
+                        platform.scheduler(), world, dir, platform.logger(),
                         () -> platform.scheduler().async(() ->
                         {
                             TerrainSnapshot.delete(dir);
                             platform.scheduler().onMain(() -> TerrainSnapshot.capture(
                                     platform.scheduler(), world, newSnapshotRegion, dir, platform.logger(), placeIt));
                         }),
-                        clearAndPlace);
+                        clearAndPlace));
             });
         });
     }
 
-    private void finishRegen(PlacedMaze maze, Region region, boolean wasFresh, String action, Audience audience)
+    private void finishRegen(PlacedMaze maze, MazeSchematic built, Region region, boolean wasFresh, String action,
+                             Audience audience)
     {
         maze.setRegion(region);
+        maze.setHoldsFluids(MazePlacer.holdsFluids(built.palette()));
         maze.setLastRegenEpochMs(System.currentTimeMillis());
         storage.save(registry.all());
         locks.release(maze.id());

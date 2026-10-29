@@ -1,4 +1,4 @@
-package app.litemazica.neoforge.platform;
+package app.litemazica.vanilla.platform;
 
 import app.litemazica.core.maze.Region;
 import app.litemazica.core.platform.BlockPos;
@@ -14,8 +14,9 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NbtAccounter;
 import net.minecraft.nbt.NbtIo;
 import net.minecraft.resources.ResourceKey;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.util.ProblemReporter;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.alchemy.Potion;
 import net.minecraft.world.item.alchemy.PotionContents;
@@ -29,7 +30,8 @@ import net.minecraft.world.level.block.entity.RandomizableContainerBlockEntity;
 import net.minecraft.world.level.block.entity.SpawnerBlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.LevelChunk;
-import net.minecraft.world.level.storage.loot.LootTable;
+import net.minecraft.world.level.storage.TagValueInput;
+import net.minecraft.world.level.storage.ValueInput;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -41,11 +43,11 @@ import java.util.logging.Logger;
 /**
  * {@link WorldAccess} over a {@link ServerLevel}.
  *
- * <p>Same job as the Fabric adapter, written against Mojang mappings instead of
- * Yarn. Block entities are captured as real NBT, so every type restores
- * faithfully — unlike the Bukkit build, which has no NBT API to reach for.
+ * <p>For 26.x, on Fabric and NeoForge alike: both see Minecraft's own names
+ * now. Block entities are captured as real NBT, so every type restores
+ * faithfully, unlike the Bukkit build, which has no NBT API to reach for.
  */
-public final class NeoForgeWorldAccess implements WorldAccess
+public final class VanillaWorldAccess implements WorldAccess
 {
     private static final Rotation[] ROTATIONS =
     {
@@ -64,7 +66,7 @@ public final class NeoForgeWorldAccess implements WorldAccess
     private final ServerLevel level;
     private final Logger logger;
 
-    public NeoForgeWorldAccess(ServerLevel level, Logger logger)
+    public VanillaWorldAccess(ServerLevel level, Logger logger)
     {
         this.level = level;
         this.logger = logger;
@@ -73,19 +75,20 @@ public final class NeoForgeWorldAccess implements WorldAccess
     @Override
     public String name()
     {
-        return NeoForgePlatform.nameOf(level);
+        return VanillaPlatform.nameOf(level);
     }
 
     @Override
     public int minY()
     {
-        return level.getMinBuildHeight();
+        return level.getMinY();
     }
 
     @Override
     public int maxY()
     {
-        return level.getMaxBuildHeight();
+        // getMaxY() is the top block itself; core wants the height above it.
+        return level.getMaxY() + 1;
     }
 
     @Override
@@ -93,6 +96,8 @@ public final class NeoForgeWorldAccess implements WorldAccess
     {
         Rotation rotation = ROTATIONS[Math.floorMod(quarterTurnsClockwise, 4)];
         BlockState[] states = new BlockState[palette.size()];
+        // Blocks this server doesn't have, so the operator can be told.
+        List<String> unknown = new ArrayList<>();
 
         for (int i = 0; i < states.length; i++)
         {
@@ -101,26 +106,27 @@ public final class NeoForgeWorldAccess implements WorldAccess
             try
             {
                 state = BlockStateParser
-                        .parseForBlock(BuiltInRegistries.BLOCK.asLookup(), palette.get(i), false)
+                        .parseForBlock(level.holderLookup(Registries.BLOCK), palette.get(i), false)
                         .blockState();
             }
             catch (Exception e)
             {
                 logger.warning("Unknown block '" + palette.get(i) + "' — using air.");
+                unknown.add(palette.get(i));
                 state = Blocks.AIR.defaultBlockState();
             }
 
             states[i] = rotation == Rotation.NONE ? state : state.rotate(rotation);
         }
 
-        return new NeoForgePalette(states);
+        return new VanillaPalette(states, List.copyOf(unknown));
     }
 
     @Override
     public void setBlock(int x, int y, int z, PreparedPalette palette, int index)
     {
         level.setBlock(new net.minecraft.core.BlockPos(x, y, z),
-                ((NeoForgePalette) palette).states[index], PLACE_FLAGS);
+                ((VanillaPalette) palette).states[index], PLACE_FLAGS);
     }
 
     @Override
@@ -131,7 +137,7 @@ public final class NeoForgeWorldAccess implements WorldAccess
         try
         {
             state = BlockStateParser
-                    .parseForBlock(BuiltInRegistries.BLOCK.asLookup(), blockState, false)
+                    .parseForBlock(level.holderLookup(Registries.BLOCK), blockState, false)
                     .blockState();
         }
         catch (Exception e)
@@ -230,7 +236,7 @@ public final class NeoForgeWorldAccess implements WorldAccess
         try (ByteArrayInputStream bytes = new ByteArrayInputStream(blob))
         {
             CompoundTag tag = NbtIo.readCompressed(bytes, NbtAccounter.unlimitedHeap());
-            entity.loadWithComponents(tag, level.registryAccess());
+            entity.loadWithComponents(input(tag));
             entity.setChanged();
         }
         catch (IOException e)
@@ -249,7 +255,7 @@ public final class NeoForgeWorldAccess implements WorldAccess
             return;
         }
 
-        ResourceLocation id = ResourceLocation.tryParse(lootTableId);
+        Identifier id = Identifier.tryParse(lootTableId);
 
         if (id == null)
         {
@@ -282,12 +288,12 @@ public final class NeoForgeWorldAccess implements WorldAccess
     /** Builds a trap stack, adding its potion contents when present (1.21 stores them in a data component). */
     private ItemStack trapStack(DispenserItem item)
     {
-        ItemStack stack = new ItemStack(BuiltInRegistries.ITEM.get(ResourceLocation.parse(item.itemId())), item.count());
+        ItemStack stack = new ItemStack(BuiltInRegistries.ITEM.getValue(Identifier.parse(item.itemId())), item.count());
 
         if (item.potionId() != null)
         {
-            ResourceKey<Potion> key = ResourceKey.create(Registries.POTION, ResourceLocation.parse(item.potionId()));
-            BuiltInRegistries.POTION.getHolder(key).ifPresent(potion ->
+            ResourceKey<Potion> key = ResourceKey.create(Registries.POTION, Identifier.parse(item.potionId()));
+            BuiltInRegistries.POTION.get(key).ifPresent(potion ->
                     stack.set(DataComponents.POTION_CONTENTS, new PotionContents(potion)));
         }
 
@@ -306,8 +312,14 @@ public final class NeoForgeWorldAccess implements WorldAccess
 
         // No typed spawner API survives across versions, so drive it through the
         // block entity's own NBT — the same load path the terrain restore uses.
-        entity.loadWithComponents(spawnerNbt(config), level.registryAccess());
+        entity.loadWithComponents(input(spawnerNbt(config)));
         entity.setChanged();
+    }
+
+    /** NBT as block entities read it from 1.21.6 on, problems in it ignored as a world load would. */
+    private ValueInput input(CompoundTag tag)
+    {
+        return TagValueInput.create(ProblemReporter.DISCARDING, level.registryAccess(), tag);
     }
 
     /** The spawner's block-entity NBT (same key layout across the supported versions). */
@@ -331,7 +343,7 @@ public final class NeoForgeWorldAccess implements WorldAccess
     }
 
     /** Palette entries already parsed and rotated into block states. */
-    private record NeoForgePalette(BlockState[] states) implements PreparedPalette
+    private record VanillaPalette(BlockState[] states, List<String> unknownBlocks) implements PreparedPalette
     {
         @Override
         public int size()

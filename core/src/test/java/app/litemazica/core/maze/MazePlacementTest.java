@@ -272,6 +272,105 @@ class MazePlacementTest
     }
 
     @Test
+    void placesFluidsOnlyOnceEverythingElseIsIn()
+    {
+        // Water beside stone on two layers, and a waterlogged stair (no fluid of its own to run off).
+        List<String> palette = List.of("minecraft:air", "minecraft:stone", "minecraft:water[level=0]",
+                "minecraft:kelp[age=3]", "minecraft:oak_stairs[waterlogged=true]");
+        int[] voxels = {1, 2, 4, 3, 2, 1};
+        MazeSchematic maze = new MazeSchematic("test", 3465, 3, 2, 1, 0,
+                0, 0, 0, voxels.length,
+                palette, pack(voxels, 3), List.of(), List.of(), 0, "minecraft:stone_bricks", 0);
+        FakeWorld world = new FakeWorld();
+
+        MazePlacer.place(new TestScheduler(), world, maze, 0, 64, 0, 270f, 0, r -> {});
+
+        List<String> order = world.writeOrder.stream().map(w -> w.substring(0, w.indexOf('@'))).toList();
+        assertEquals(6, order.size(), order.toString());
+        int lastSolid = Math.max(order.lastIndexOf("minecraft:stone"), order.lastIndexOf("minecraft:oak_stairs[waterlogged=true]"));
+        int firstFluid = Math.min(order.indexOf("minecraft:water[level=0]"), order.indexOf("minecraft:kelp[age=3]"));
+        assertTrue(lastSolid < firstFluid, "solids first, then the fluids: " + order);
+        assertTrue(MazePlacer.holdsFluids(palette));
+        assertFalse(MazePlacer.holdsFluids(List.of("minecraft:air", "minecraft:oak_stairs[waterlogged=true]")),
+                "a waterlogged block alone doesn't count");
+    }
+
+    @Test
+    void clearsFromTheTopLayerDown()
+    {
+        FakeWorld world = new FakeWorld();
+
+        MazePlacer.clear(new TestScheduler(), world, new Region(0, 60, 0, 1, 62, 1), () -> {});
+
+        List<Integer> ys = world.writeOrder.stream().map(w -> Integer.parseInt(w.split(",")[1])).toList();
+        assertEquals(12, ys.size());
+        assertEquals(List.of(62, 62, 62, 62, 61, 61, 61, 61, 60, 60, 60, 60), ys, "water never rises, so the top goes first");
+    }
+
+    @Test
+    void drainsOnlyAMazeThatHeldWater()
+    {
+        Region region = new Region(0, 60, 0, 1, 61, 1);
+        PlacedMaze maze = new PlacedMaze("m", "test", MazeSource.TYPE_API, "CODE", 0, 60, 0, 0f, region, 0, false, 0, 0);
+        FakeWorld world = new FakeWorld();
+        boolean[] ran = {false};
+
+        MazePlacer.drainThen(new TestScheduler(), world, maze, () -> ran[0] = true);
+        assertTrue(ran[0]);
+        assertTrue(world.writeOrder.isEmpty(), "a dry maze goes straight on");
+
+        maze.setHoldsFluids(true);
+        world.seed(0, 61, 0, "minecraft:water");
+        MazePlacer.drainThen(new TestScheduler(), world, maze, () -> assertEquals("minecraft:air", world.blockAt(0, 61, 0),
+                "the water is gone before what comes next"));
+        assertEquals(8, world.writeOrder.size());
+    }
+
+    @Test
+    void warnsAboutBlocksTheServerLacksAndSignTextItWontRead()
+    {
+        int[] voxels = {1, 1, 2, 2};
+        Map<String, Object> sign = Map.of("id", "minecraft:sign", "x", 0, "y", 0, "z", 0,
+                "front_text", Map.of("messages", List.of("\"Hi\"", "\"\"", "\"\"", "\"\"")));
+        MazeSchematic maze = new MazeSchematic("test", 3953, 2, 2, 1, 0,
+                0, 0, 0, voxels.length,
+                PALETTE, pack(voxels, 2), List.of(sign), List.of(), 0, "minecraft:stone_bricks", 0);
+        FakeWorld world = new FakeWorld();
+
+        assertTrue(MazePlacer.versionNotes(world, maze, 3953).isEmpty(), "built for this server: nothing to say");
+        assertTrue(MazePlacer.versionNotes(world, maze, 0).isEmpty(), "a server that can't tell its version isn't warned");
+
+        world.missingBlocks.add(PALETTE.get(1));
+        List<String> notes = MazePlacer.versionNotes(world, maze, 4325);
+        assertEquals(2, notes.size(), notes.toString());
+        assertTrue(notes.get(0).startsWith("This server doesn't have "));
+        assertTrue(notes.get(1).contains("sign text"));
+    }
+
+    @Test
+    void blendLeavesTheColumnOverAShaftAlone()
+    {
+        // Two buried columns; a shaft leaves the maze through the top of column 0,
+        // carried on up through the terrain by the player. Column 1 is capped as
+        // usual, but column 0 is neither capped nor lapped by the eave.
+        int[] voxels = {1, 1, 2, 2};
+        MazeSchematic maze = new MazeSchematic("test", 3465, 2, 2, 1, 0,
+                0, 0, 0, voxels.length,
+                PALETTE, pack(voxels, 2), List.of(), List.of(), 20, "minecraft:stone_bricks", 0,
+                List.of(new int[]{0, 0}));
+        FakeWorld world = new FakeWorld();
+        world.seed(0, CAP_Y, 0, "minecraft:water");
+        world.seed(1, CAP_Y, 0, "minecraft:stone");
+        world.seed(1, CAP_Y + 1, 0, "minecraft:dirt");
+
+        MazePlacer.place(new TestScheduler(), world, maze, 0, 64, 0, 270f, 20, r -> {});
+
+        assertEquals("minecraft:water", world.blockAt(0, CAP_Y, 0), "the shaft's water above the maze is kept");
+        assertFalse(world.wasWritten(0, CAP_Y, 0), "nothing is written over the shaft");
+        assertEquals("minecraft:stone_bricks", world.blockAt(1, CAP_Y, 0), "the buried column beside it is capped");
+    }
+
+    @Test
     void blendClearsCanopyButKeepsAFarOverhang()
     {
         MazeSchematic maze = schematic(new int[]{1, 1}, 30);
@@ -296,7 +395,7 @@ class MazePlacementTest
                 Map.<String, Object>of("Slot", (byte) 2, "id", "minecraft:tipped_arrow", "Count", (byte) 1,
                         "tag", Map.<String, Object>of("Potion", "minecraft:harming")));
         MazeSchematic maze = new MazeSchematic("test", 3465, 1, 2, 1, 0,
-                0, 0, 0, 2, 0,
+                0, 0, 0, 2,
                 PALETTE, pack(new int[]{1, 2}, 2),
                 List.of(Map.<String, Object>of("id", "minecraft:dispenser", "x", 0, "y", 0, "z", 0,
                         "Items", bakedItems)),
@@ -327,7 +426,7 @@ class MazePlacementTest
         // Nothing baked in → the plugin leaves the dispenser as placed (it never
         // invents its own load).
         MazeSchematic maze = new MazeSchematic("test", 3465, 1, 2, 1, 0,
-                0, 0, 0, 2, 0,
+                0, 0, 0, 2,
                 PALETTE, pack(new int[]{1, 2}, 2),
                 List.of(Map.of("id", "minecraft:dispenser", "x", 0, "y", 0, "z", 0)),
                 0, "minecraft:stone_bricks");
@@ -371,7 +470,7 @@ class MazePlacementTest
         // A spawner carrying baked SpawnData (the web-app editor's mob). Placement
         // writes the empty block; the spawner is then armed with exactly that mob.
         MazeSchematic maze = new MazeSchematic("test", 3465, 1, 2, 1, 0,
-                0, 0, 0, 2, 0,
+                0, 0, 0, 2,
                 PALETTE, pack(new int[]{1, 2}, 2),
                 List.of(Map.<String, Object>of("id", "minecraft:mob_spawner", "x", 0, "y", 0, "z", 0,
                         "SpawnData", Map.<String, Object>of("entity",
@@ -444,7 +543,7 @@ class MazePlacementTest
         // every time.
         List<String> palette = List.of("minecraft:trapped_chest");
         MazeSchematic maze = new MazeSchematic("test", 3465, 1, 1, 1, 0,
-                0, 0, 0, 1, 0,
+                0, 0, 0, 1,
                 palette, pack(new int[]{0}, 2),
                 List.of(Map.of("id", "minecraft:trapped_chest", "x", 0, "y", 0, "z", 0,
                         "LootTable", "minecraft:chests/simple_dungeon")),
@@ -521,7 +620,7 @@ class MazePlacementTest
                 "minecraft:heavy_weighted_pressure_plate", "minecraft:stone_pressure_plate");
         // Voxels along z: [trap, trap, trap, trap, decorative].
         MazeSchematic maze = new MazeSchematic("test", 3465, 1, 1, 5, 0,
-                0, 0, 0, 5, 0,
+                0, 0, 0, 5,
                 palette, pack(new int[]{0, 0, 0, 0, 1}, 2), List.of(),
                 0, "minecraft:stone_bricks");
 
@@ -559,7 +658,7 @@ class MazePlacementTest
     private static MazeSchematic schematic(int[] voxels, int clearAbove)
     {
         return new MazeSchematic("test", 3465, 1, 2, 1, 0,
-                0, 0, 0, voxels.length, 0,
+                0, 0, 0, voxels.length,
                 PALETTE, pack(voxels, 2), List.of(), clearAbove, "minecraft:stone_bricks");
     }
 
@@ -569,7 +668,7 @@ class MazePlacementTest
         // Voxels are ordered ((y*sizeZ + z)*sizeX + x): [col0_y0, col1_y0, col0_y1, col1_y1].
         int[] voxels = {1, 1, 2, 2}; // stone floors, structure_void above
         return new MazeSchematic("test", 3465, 2, 2, 1, 0,
-                0, 0, 0, voxels.length, 0,
+                0, 0, 0, voxels.length,
                 PALETTE, pack(voxels, 2), List.of(), clearAbove, "minecraft:stone_bricks");
     }
 

@@ -93,6 +93,28 @@ class LitemazicaClientFetchTest
     }
 
     @Test
+    void asksForMazesBuiltForTheServersVersion(@TempDir File dir) throws Exception
+    {
+        LitemazicaClient client = client();
+        client.fetch("CODE");
+        assertTrue(!requests.get(0).contains("dv="), "an unknown version is left to the share code");
+
+        client.buildFor(4325);
+        client.fetch("CODE");
+        client.fetch("CODE", "fresh1");
+        assertTrue(requests.get(1).endsWith("&dv=4325"), requests.get(1));
+        assertTrue(requests.get(2).contains("seed=fresh1") && requests.get(2).endsWith("&dv=4325"), requests.get(2));
+
+        // A layout cached on an older version isn't reused once the server is upgraded.
+        client.useLayoutCache(new LayoutCache(dir, 3465, Set::of, Logger.getLogger("test")));
+        client.fetch("CODE");
+        client.useLayoutCache(new LayoutCache(dir, 4325, Set::of, Logger.getLogger("test")));
+        client.fetch("CODE");
+        client.fetch("CODE");
+        assertEquals(5, requests.size(), "one fetch per version, then the cache");
+    }
+
+    @Test
     void withoutACacheEveryFetchAsksTheApi() throws Exception
     {
         LitemazicaClient client = client();

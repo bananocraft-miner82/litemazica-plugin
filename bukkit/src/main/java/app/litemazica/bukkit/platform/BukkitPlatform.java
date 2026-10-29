@@ -120,6 +120,21 @@ public final class BukkitPlatform implements Platform
         return world == null ? null : new BukkitWorldAccess(world, plugin.getLogger());
     }
 
+    @Override
+    @SuppressWarnings("deprecation") // UnsafeValues is the only place Bukkit tells it, on every version we run on
+    public int dataVersion()
+    {
+        try
+        {
+            return Bukkit.getUnsafe().getDataVersion();
+        }
+        catch (RuntimeException | LinkageError e)
+        {
+            plugin.getLogger().warning("Could not tell this server's Minecraft version; mazes are built for each share code's own.");
+            return 0;
+        }
+    }
+
     /** Bukkit's scheduler, shaped to the core's slice-per-tick contract. */
     private record BukkitScheduler(Plugin plugin) implements Scheduler
     {

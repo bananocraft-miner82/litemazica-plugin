@@ -1,4 +1,4 @@
-package app.litemazica.neoforge.command;
+package app.litemazica.vanilla.command;
 
 import app.litemazica.core.maze.MazeName;
 import app.litemazica.core.maze.MazeService;
@@ -6,9 +6,9 @@ import app.litemazica.core.maze.PlacedMaze;
 import app.litemazica.core.maze.RegenInterval;
 import app.litemazica.core.platform.Audience;
 import app.litemazica.core.platform.MessageStyle;
-import app.litemazica.neoforge.LitemazicaNeoForgeMod;
-import app.litemazica.neoforge.platform.NeoForgeAudience;
-import app.litemazica.neoforge.platform.NeoForgePlatform;
+import app.litemazica.vanilla.LitemazicaRuntime;
+import app.litemazica.vanilla.platform.VanillaAudience;
+import app.litemazica.vanilla.platform.VanillaPlatform;
 
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.StringArgumentType;
@@ -22,19 +22,22 @@ import net.minecraft.commands.Commands;
 import net.minecraft.commands.arguments.coordinates.BlockPosArgument;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.permissions.PermissionProviderCheck;
+
+import java.util.function.Predicate;
 
 /**
  * The {@code /litemazica} command tree.
  *
  * <p>Only parsing and permissions live here — everything else is
- * {@link MazeService} in core. NeoForge has no permission system, so the split
- * that is {@code litemazica.start} vs {@code litemazica.generate} on Bukkit is
- * expressed as op level 0 (anyone) vs op level 2 (admin).
+ * {@link MazeService} in core. Neither loader has a permission system, so the
+ * split that is {@code litemazica.start} vs {@code litemazica.generate} on
+ * Bukkit is expressed as anyone vs a game master (op level 2).
  */
 public final class LitemazicaCommands
 {
-    /** Vanilla op level required for the admin subcommands. */
-    private static final int ADMIN_LEVEL = 2;
+    /** Who may use the admin subcommands: game masters (op level 2), as for vanilla's own commands. */
+    private static final Predicate<CommandSourceStack> ADMIN = new PermissionProviderCheck<>(Commands.LEVEL_GAMEMASTERS);
 
     private LitemazicaCommands()
     {
@@ -43,7 +46,7 @@ public final class LitemazicaCommands
     /** Suggests the ids of currently placed mazes. */
     private static final SuggestionProvider<CommandSourceStack> MAZE_IDS = (context, builder) ->
     {
-        MazeService service = LitemazicaNeoForgeMod.service();
+        MazeService service = LitemazicaRuntime.service();
 
         if (service != null)
         {
@@ -59,7 +62,7 @@ public final class LitemazicaCommands
     /** Suggests the {@code .litematic} files available to {@code place}. */
     private static final SuggestionProvider<CommandSourceStack> SCHEMATIC_FILES = (context, builder) ->
     {
-        MazeService service = LitemazicaNeoForgeMod.service();
+        MazeService service = LitemazicaRuntime.service();
 
         if (service != null)
         {
@@ -101,7 +104,7 @@ public final class LitemazicaCommands
     {
         // Building a maze is an admin action, whether by code or via the editor.
         return Commands.literal("editor")
-                .requires(source -> source.hasPermission(ADMIN_LEVEL))
+                .requires(ADMIN)
                 .executes(context ->
                 {
                     MazeService service = service(context);
@@ -119,7 +122,7 @@ public final class LitemazicaCommands
     private static LiteralArgumentBuilder<CommandSourceStack> editNode()
     {
         return Commands.literal("edit")
-                .requires(source -> source.hasPermission(ADMIN_LEVEL))
+                .requires(ADMIN)
                 .then(Commands.argument("id", StringArgumentType.word())
                         .suggests(MAZE_IDS)
                         .executes(context ->
@@ -159,7 +162,7 @@ public final class LitemazicaCommands
         }
 
         ServerPlayer player = context.getSource().getPlayer();
-        service.start(audience(context), player == null ? null : player.getGameProfile().getName(), id);
+        service.start(audience(context), player == null ? null : VanillaPlatform.nameOf(player), id);
         return 1;
     }
 
@@ -168,8 +171,9 @@ public final class LitemazicaCommands
     private static LiteralArgumentBuilder<CommandSourceStack> generateNode()
     {
         return Commands.literal("generate")
-                .requires(source -> source.hasPermission(ADMIN_LEVEL))
-                .then(Commands.argument("code", StringArgumentType.word())
+                .requires(ADMIN)
+                // A code, or a share link in quotes: a link has characters a bare word can't.
+                .then(Commands.argument("code", StringArgumentType.string())
                         .executes(context -> generate(context, null, null))
                         .then(Commands.argument("name", StringArgumentType.word())
                                 .executes(context -> generate(context,
@@ -196,7 +200,7 @@ public final class LitemazicaCommands
     private static LiteralArgumentBuilder<CommandSourceStack> placeNode()
     {
         return Commands.literal("place")
-                .requires(source -> source.hasPermission(ADMIN_LEVEL))
+                .requires(ADMIN)
                 .then(Commands.argument("file", StringArgumentType.word())
                         .suggests(SCHEMATIC_FILES)
                         .executes(context -> place(context, null, null))
@@ -223,7 +227,7 @@ public final class LitemazicaCommands
     private static LiteralArgumentBuilder<CommandSourceStack> filesNode()
     {
         return Commands.literal("files")
-                .requires(source -> source.hasPermission(ADMIN_LEVEL))
+                .requires(ADMIN)
                 .executes(context ->
                 {
                     MazeService service = service(context);
@@ -286,7 +290,7 @@ public final class LitemazicaCommands
         }
 
         ServerPlayer player = source.getPlayer();
-        String worldName = NeoForgePlatform.nameOf(source.getLevel());
+        String worldName = VanillaPlatform.nameOf(source.getLevel());
         float yaw = player != null ? player.getYRot() : 0f;
         BlockPos anchor;
         String exempt;
@@ -300,7 +304,7 @@ public final class LitemazicaCommands
         else if (player != null)
         {
             anchor = player.blockPosition();
-            exempt = player.getGameProfile().getName();
+            exempt = VanillaPlatform.nameOf(player);
         }
         else
         {
@@ -319,7 +323,7 @@ public final class LitemazicaCommands
     private static LiteralArgumentBuilder<CommandSourceStack> listNode()
     {
         return Commands.literal("list")
-                .requires(source -> source.hasPermission(ADMIN_LEVEL))
+                .requires(ADMIN)
                 .executes(context ->
                 {
                     MazeService service = service(context);
@@ -354,7 +358,7 @@ public final class LitemazicaCommands
     private static LiteralArgumentBuilder<CommandSourceStack> removeNode()
     {
         return Commands.literal("remove")
-                .requires(source -> source.hasPermission(ADMIN_LEVEL))
+                .requires(ADMIN)
                 .then(Commands.argument("id", StringArgumentType.word())
                         .suggests(MAZE_IDS)
                         .executes(context -> remove(context, false))
@@ -378,7 +382,7 @@ public final class LitemazicaCommands
     private static LiteralArgumentBuilder<CommandSourceStack> regenNode()
     {
         LiteralArgumentBuilder<CommandSourceStack> regen = Commands.literal("regen")
-                .requires(source -> source.hasPermission(ADMIN_LEVEL));
+                .requires(ADMIN);
 
         RequiredArgumentBuilder<CommandSourceStack, String> idArg =
                 Commands.argument("id", StringArgumentType.word()).suggests(MAZE_IDS);
@@ -432,11 +436,11 @@ public final class LitemazicaCommands
     private static LiteralArgumentBuilder<CommandSourceStack> reloadNode()
     {
         return Commands.literal("reload")
-                .requires(source -> source.hasPermission(ADMIN_LEVEL))
+                .requires(ADMIN)
                 .executes(context ->
                 {
-                    LitemazicaNeoForgeMod.reload();
-                    MazeService service = LitemazicaNeoForgeMod.service();
+                    LitemazicaRuntime.reload();
+                    MazeService service = LitemazicaRuntime.service();
                     audience(context).send(MessageStyle.SUCCESS, "Litemazica config reloaded."
                             + (service == null ? "" : " API base URL: " + service.client().baseUrl()));
                     return 1;
@@ -447,20 +451,20 @@ public final class LitemazicaCommands
 
     private static Audience audience(CommandContext<CommandSourceStack> context)
     {
-        return new NeoForgeAudience(context.getSource());
+        return new VanillaAudience(context.getSource());
     }
 
     /** The command sender's player name, or null when run from the console. */
     private static String playerName(CommandContext<CommandSourceStack> context)
     {
         ServerPlayer player = context.getSource().getPlayer();
-        return player == null ? null : player.getGameProfile().getName();
+        return player == null ? null : VanillaPlatform.nameOf(player);
     }
 
     /** Null (with a message) before the server has finished starting. */
     private static MazeService service(CommandContext<CommandSourceStack> context)
     {
-        MazeService service = LitemazicaNeoForgeMod.service();
+        MazeService service = LitemazicaRuntime.service();
 
         if (service == null)
         {

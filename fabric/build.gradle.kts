@@ -5,10 +5,17 @@ plugins {
 // Unlike the Bukkit plugin, a Fabric mod is bound to one Minecraft version:
 // Loom compiles against Minecraft's own (remapped) classes, which change every
 // release. These are overridable so CI can build the version matrix.
-val minecraftVersion = (findProperty("minecraftVersion") as String?) ?: "1.20.1"
-val yarnMappings = (findProperty("yarnMappings") as String?) ?: "1.20.1+build.10"
-val loaderVersion = (findProperty("loaderVersion") as String?) ?: "0.15.11"
-val fabricApiVersion = (findProperty("fabricApiVersion") as String?) ?: "0.92.2+1.20.1"
+//
+// The fabric26 module reads the same property names, and Gradle configures both
+// modules whichever one is built, so properties naming a 26.x version are that
+// module's: this one then keeps its defaults.
+val requested = findProperty("minecraftVersion") as String?
+val forThis = requested == null || requested.startsWith("1.")
+fun ownProperty(name: String) = if (forThis) findProperty(name) as String? else null
+val minecraftVersion = ownProperty("minecraftVersion") ?: "1.20.1"
+val yarnMappings = ownProperty("yarnMappings") ?: "1.20.1+build.10"
+val loaderVersion = ownProperty("loaderVersion") ?: "0.15.11"
+val fabricApiVersion = ownProperty("fabricApiVersion") ?: "0.92.2+1.20.1"
 
 // Most of the adapter is stable across Minecraft versions; block-entity NBT and
 // loot tables are not. Rather than reflection or a shim, the one class that
@@ -42,8 +49,10 @@ tasks.jar {
 tasks.processResources {
     val modVersion = project.version.toString()
     inputs.property("version", modVersion)
+    inputs.property("minecraft", minecraftVersion)
 
+    // The jar loads only on the Minecraft it was built for (and its patches).
     filesMatching("fabric.mod.json") {
-        expand("version" to modVersion)
+        expand("version" to modVersion, "minecraft" to minecraftVersion)
     }
 }

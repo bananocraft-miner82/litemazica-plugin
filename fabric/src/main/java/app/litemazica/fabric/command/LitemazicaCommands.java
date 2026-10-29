@@ -168,7 +168,8 @@ public final class LitemazicaCommands
     {
         return CommandManager.literal("generate")
                 .requires(source -> source.hasPermissionLevel(ADMIN_LEVEL))
-                .then(CommandManager.argument("code", StringArgumentType.word())
+                // A code, or a share link in quotes: a link has characters a bare word can't.
+                .then(CommandManager.argument("code", StringArgumentType.string())
                         .executes(context -> generate(context, null, null))
                         .then(CommandManager.argument("name", StringArgumentType.word())
                                 .executes(context -> generate(context,

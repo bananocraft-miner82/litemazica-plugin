@@ -11,6 +11,7 @@ import app.litemazica.core.platform.Scheduler;
 import app.litemazica.core.platform.TickScheduler;
 import app.litemazica.core.platform.WorldAccess;
 
+import net.minecraft.SharedConstants;
 import net.minecraft.registry.RegistryKey;
 import net.minecraft.registry.RegistryKeys;
 import net.minecraft.server.MinecraftServer;
@@ -114,6 +115,12 @@ public final class FabricPlatform implements Platform
     {
         ServerWorld world = resolve(worldName);
         return world == null ? null : new FabricWorldAccess(world, LOGGER);
+    }
+
+    @Override
+    public int dataVersion()
+    {
+        return SharedConstants.getGameVersion().getSaveVersion().getId();
     }
 
     private ServerWorld resolve(String worldName)

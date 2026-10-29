@@ -1,4 +1,4 @@
-package app.litemazica.neoforge.platform;
+package app.litemazica.vanilla.platform;
 
 import app.litemazica.core.maze.Region;
 import app.litemazica.core.platform.Audience;
@@ -11,22 +11,25 @@ import app.litemazica.core.platform.Scheduler;
 import app.litemazica.core.platform.TickScheduler;
 import app.litemazica.core.platform.WorldAccess;
 
+import net.minecraft.SharedConstants;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.Identifier;
 import net.minecraft.resources.ResourceKey;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.permissions.Permissions;
 import net.minecraft.world.level.Level;
 
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.logging.Logger;
 
-/** Binds core to a running NeoForge dedicated server. */
-public final class NeoForgePlatform implements Platform
+/** Binds core to a running dedicated server, on Fabric or NeoForge alike. */
+public final class VanillaPlatform implements Platform
 {
     private static final Logger LOGGER = Logger.getLogger("Litemazica");
 
@@ -34,9 +37,9 @@ public final class NeoForgePlatform implements Platform
     private final File dataFolder;
     private final TickScheduler scheduler;
     private final PropertiesConfig config;
-    private final PlayerLookup players = new NeoForgePlayers();
+    private final PlayerLookup players = new VanillaPlayers();
 
-    public NeoForgePlatform(MinecraftServer server, File dataFolder)
+    public VanillaPlatform(MinecraftServer server, File dataFolder)
     {
         this.server = server;
         this.dataFolder = dataFolder;
@@ -86,9 +89,9 @@ public final class NeoForgePlatform implements Platform
     }
 
     /**
-     * NeoForge has no permission system, so "admin" is op level 2 — the same gate
-     * the command tree puts its admin subcommands behind. Re-scan on every send:
-     * an op may join between wiring and the announcement.
+     * Neither loader has a permission plugin, so "admin" is a game master (op
+     * level 2), the same gate the command tree puts its admin subcommands behind.
+     * Re-scan on every send: an op may join between wiring and the announcement.
      */
     @Override
     public Audience admins()
@@ -97,9 +100,9 @@ public final class NeoForgePlatform implements Platform
         {
             for (ServerPlayer player : server.getPlayerList().getPlayers())
             {
-                if (player.hasPermissions(2))
+                if (player.permissions().hasPermission(Permissions.COMMANDS_GAMEMASTER))
                 {
-                    new NeoForgeAudience(player.createCommandSourceStack()).send(style, text);
+                    new VanillaAudience(player.createCommandSourceStack()).send(style, text);
                 }
             }
         };
@@ -110,12 +113,18 @@ public final class NeoForgePlatform implements Platform
     public WorldAccess world(String worldName)
     {
         ServerLevel level = resolve(worldName);
-        return level == null ? null : new NeoForgeWorldAccess(level, LOGGER);
+        return level == null ? null : new VanillaWorldAccess(level, LOGGER);
+    }
+
+    @Override
+    public int dataVersion()
+    {
+        return SharedConstants.getCurrentVersion().dataVersion().version();
     }
 
     private ServerLevel resolve(String worldName)
     {
-        ResourceLocation id = ResourceLocation.tryParse(worldName);
+        Identifier id = Identifier.tryParse(worldName);
 
         if (id == null)
         {
@@ -125,7 +134,7 @@ public final class NeoForgePlatform implements Platform
         return server.getLevel(ResourceKey.create(Registries.DIMENSION, id));
     }
 
-    private final class NeoForgePlayers implements PlayerLookup
+    private final class VanillaPlayers implements PlayerLookup
     {
         @Override
         public List<String> namesInside(String worldName, Region region, String exemptName)
@@ -141,7 +150,7 @@ public final class NeoForgePlatform implements Platform
 
             for (ServerPlayer player : level.players())
             {
-                String name = player.getGameProfile().getName();
+                String name = nameOf(player);
 
                 if (name.equals(exemptName))
                 {
@@ -178,7 +187,7 @@ public final class NeoForgePlatform implements Platform
                 return false;
             }
 
-            player.teleportTo(level, x, y, z, yaw, pitch);
+            player.teleportTo(level, x, y, z, Set.of(), yaw, pitch, true);
             return true;
         }
 
@@ -193,7 +202,7 @@ public final class NeoForgePlatform implements Platform
             }
 
             BlockPos pos = player.blockPosition();
-            return new PlayerPose(nameOf(player.serverLevel()),
+            return new PlayerPose(nameOf(player.level()),
                     pos.getX(), pos.getY(), pos.getZ(), player.getYRot());
         }
     }
@@ -201,6 +210,12 @@ public final class NeoForgePlatform implements Platform
     /** The dimension id string core should store for a world. */
     public static String nameOf(Level level)
     {
-        return level.dimension().location().toString();
+        return level.dimension().identifier().toString();
+    }
+
+    /** A player's name, as core keys players by. */
+    public static String nameOf(ServerPlayer player)
+    {
+        return player.getGameProfile().name();
     }
 }

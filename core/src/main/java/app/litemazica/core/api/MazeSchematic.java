@@ -39,12 +39,18 @@ public final class MazeSchematic
     private final int entranceY;
     private final int entranceZ;
     private final int blockCount;
-    private final int commandBlocks;
     /**
      * Custom builds the maze's design uses that the Litemazica server no longer
      * has, so the maze was generated without them. 0 for files and most mazes.
      */
     private final int skippedBuilds;
+    /**
+     * Region-local {x, z} columns of shaft entrances and exits that leave the
+     * maze through its top. The player carries those shafts on above the maze,
+     * so blending into the terrain must neither cap nor clear over them. Empty
+     * for files and most mazes.
+     */
+    private final List<int[]> topShafts;
 
     /** Block-data strings; index 0 is always {@code minecraft:air}. */
     private final List<String> palette;
@@ -66,11 +72,11 @@ public final class MazeSchematic
             String name, int dataVersion,
             int sizeX, int sizeY, int sizeZ, int originY,
             int entranceX, int entranceY, int entranceZ,
-            int blockCount, int commandBlocks,
+            int blockCount,
             List<String> palette, long[] blockStates, List<Map<String, Object>> tileEntities,
             int clearAbove, String ceilingBlock)
     {
-        this(name, dataVersion, sizeX, sizeY, sizeZ, originY, entranceX, entranceY, entranceZ, blockCount, commandBlocks,
+        this(name, dataVersion, sizeX, sizeY, sizeZ, originY, entranceX, entranceY, entranceZ, blockCount,
                 palette, blockStates, tileEntities, List.of(), clearAbove, ceilingBlock);
     }
 
@@ -78,12 +84,12 @@ public final class MazeSchematic
             String name, int dataVersion,
             int sizeX, int sizeY, int sizeZ, int originY,
             int entranceX, int entranceY, int entranceZ,
-            int blockCount, int commandBlocks,
+            int blockCount,
             List<String> palette, long[] blockStates, List<Map<String, Object>> tileEntities,
             List<Map<String, Object>> entities,
             int clearAbove, String ceilingBlock)
     {
-        this(name, dataVersion, sizeX, sizeY, sizeZ, originY, entranceX, entranceY, entranceZ, blockCount, commandBlocks,
+        this(name, dataVersion, sizeX, sizeY, sizeZ, originY, entranceX, entranceY, entranceZ, blockCount,
                 palette, blockStates, tileEntities, entities, clearAbove, ceilingBlock, 0);
     }
 
@@ -91,10 +97,23 @@ public final class MazeSchematic
             String name, int dataVersion,
             int sizeX, int sizeY, int sizeZ, int originY,
             int entranceX, int entranceY, int entranceZ,
-            int blockCount, int commandBlocks,
+            int blockCount,
             List<String> palette, long[] blockStates, List<Map<String, Object>> tileEntities,
             List<Map<String, Object>> entities,
             int clearAbove, String ceilingBlock, int skippedBuilds)
+    {
+        this(name, dataVersion, sizeX, sizeY, sizeZ, originY, entranceX, entranceY, entranceZ, blockCount,
+                palette, blockStates, tileEntities, entities, clearAbove, ceilingBlock, skippedBuilds, List.of());
+    }
+
+    public MazeSchematic(
+            String name, int dataVersion,
+            int sizeX, int sizeY, int sizeZ, int originY,
+            int entranceX, int entranceY, int entranceZ,
+            int blockCount,
+            List<String> palette, long[] blockStates, List<Map<String, Object>> tileEntities,
+            List<Map<String, Object>> entities,
+            int clearAbove, String ceilingBlock, int skippedBuilds, List<int[]> topShafts)
     {
         this.name = name;
         this.dataVersion = dataVersion;
@@ -110,13 +129,13 @@ public final class MazeSchematic
         this.entranceY = entranceY;
         this.entranceZ = entranceZ;
         this.blockCount = blockCount;
-        this.commandBlocks = commandBlocks;
         this.skippedBuilds = Math.max(0, skippedBuilds);
         this.palette = List.copyOf(palette);
         this.blockStates = blockStates;
         this.bitsPerBlock = Math.max(2, 32 - Integer.numberOfLeadingZeros(Math.max(1, palette.size() - 1)));
         this.tileEntities = tileEntities;
         this.entities = entities == null ? List.of() : entities;
+        this.topShafts = topShafts == null ? List.of() : List.copyOf(topShafts);
 
         validate();
     }
@@ -225,15 +244,16 @@ public final class MazeSchematic
         return blockCount;
     }
 
-    public int commandBlocks()
-    {
-        return commandBlocks;
-    }
-
     /** Custom builds left out because the server no longer has them (see the field). */
     public int skippedBuilds()
     {
         return skippedBuilds;
+    }
+
+    /** Columns of shafts leaving through the maze's top, as region-local {x, z} (see the field). */
+    public List<int[]> topShafts()
+    {
+        return topShafts;
     }
 
     public long volume()

@@ -27,11 +27,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # JDK 21 throughout: modules that target Java 17 pin it with
-      # options.release, and the mod modules need a real 21.
+      # JDK 25 throughout: Fabric's Loom for 26.x only runs on 25. Modules that
+      # target Java 17 pin it with options.release, and Gradle fetches the real 21
+      # the 1.21 NeoForge build asks for.
       - uses: actions/setup-java@v4
         with:
-          java-version: '21'
+          java-version: '25'
           distribution: temurin
 
       - uses: gradle/actions/setup-gradle@v4
@@ -56,11 +57,14 @@ jobs:
           - '1.20.6-R0.1-SNAPSHOT'
           - '1.21-R0.1-SNAPSHOT'
           - '1.21.4-R0.1-SNAPSHOT'
+          - '1.21.11-R0.1-SNAPSHOT'
+          - '26.2-R0.1-SNAPSHOT'
+          - '26.3-R0.1-SNAPSHOT'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
         with:
-          java-version: '21'
+          java-version: '25'
           distribution: temurin
       - uses: gradle/actions/setup-gradle@v4
 
@@ -81,13 +85,13 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
         with:
-          java-version: '21'
+          java-version: '25'
           distribution: temurin
       - uses: gradle/actions/setup-gradle@v4
 
       - name: Build
         run: >
-          sh ./gradlew :fabric:build
+          sh ./gradlew :${{ matrix.target.module }}:build
           -PminecraftVersion=${{ matrix.target.mc }}
           -PyarnMappings=${{ matrix.target.yarn }}
           -PloaderVersion=${{ matrix.target.loader }}
@@ -105,7 +109,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
         with:
-          java-version: '21'
+          java-version: '25'
           distribution: temurin
       - uses: gradle/actions/setup-gradle@v4
 

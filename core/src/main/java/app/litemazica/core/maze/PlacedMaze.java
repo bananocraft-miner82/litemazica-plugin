@@ -29,6 +29,8 @@ public final class PlacedMaze
     private int regenMinutes;
     private boolean freshLayout;
     private long lastRegenEpochMs;
+    /** Whether the maze as built holds water (or lava): taking it away then starts by clearing it to air. */
+    private boolean holdsFluids;
 
     public PlacedMaze(String id, String worldName, String sourceType, String shareCode,
                       int anchorX, int anchorY, int anchorZ, float yaw,
@@ -136,6 +138,16 @@ public final class PlacedMaze
     public void setFreshLayout(boolean freshLayout)
     {
         this.freshLayout = freshLayout;
+    }
+
+    public boolean holdsFluids()
+    {
+        return holdsFluids;
+    }
+
+    public void setHoldsFluids(boolean holdsFluids)
+    {
+        this.holdsFluids = holdsFluids;
     }
 
     public long lastRegenEpochMs()

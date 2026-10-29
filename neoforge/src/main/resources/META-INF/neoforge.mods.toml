@@ -14,13 +14,13 @@ displayURL = "https://litemazica.app"
 [[dependencies.litemazica]]
 modId = "neoforge"
 type = "required"
-versionRange = "[21.1,)"
+versionRange = "${neoForgeRange}"
 ordering = "NONE"
 side = "SERVER"
 
 [[dependencies.litemazica]]
 modId = "minecraft"
 type = "required"
-versionRange = "[1.21.1,1.22)"
+versionRange = "${minecraftRange}"
 ordering = "NONE"
 side = "SERVER"

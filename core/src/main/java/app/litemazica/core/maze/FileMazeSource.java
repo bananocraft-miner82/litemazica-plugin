@@ -77,7 +77,7 @@ public final class FileMazeSource implements MazeSource
             // cap falls back to the default ceiling material.
             return new MazeSchematic(
                     name, r.dataVersion(), r.sizeX(), r.sizeY(), r.sizeZ(), 0,
-                    entranceX, entranceY, entranceZ, r.totalBlocks(), 0,
+                    entranceX, entranceY, entranceZ, r.totalBlocks(),
                     r.palette(), r.blockStates(), r.tileEntities(), r.entities(), 0, "minecraft:stone_bricks");
         }
         catch (IllegalArgumentException e)

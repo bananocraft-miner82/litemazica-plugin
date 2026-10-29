@@ -83,6 +83,16 @@ final class TerrainBlender
             }
         }
 
+        // A shaft the player carries on up out of the maze must stay open: never
+        // capped, and whatever they build above it never cleared.
+        for (int[] shaft : maze.topShafts())
+        {
+            if (shaft[0] >= 0 && shaft[0] < sizeX && shaft[1] >= 0 && shaft[1] < sizeZ)
+            {
+                real[shaft[1] * sizeX + shaft[0]] = false;
+            }
+        }
+
         return real;
     }
 

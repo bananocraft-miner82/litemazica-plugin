@@ -69,6 +69,12 @@ class MazeStoreTest
         assertTrue(m.freshLayout());
         assertEquals(1_000L, m.placedAtEpochMs());
         assertEquals(2_000L, m.lastRegenEpochMs());
+        assertFalse(m.holdsFluids());
+
+        PlacedMaze flooded = maze("lagoon");
+        flooded.setHoldsFluids(true);
+        MazeStore.write(file, MazeStore.serialize(List.of(flooded)));
+        assertTrue(MazeStore.load(file, LOGGER).get(0).holdsFluids());
     }
 
     @Test

@@ -72,7 +72,7 @@ class BlendPolicyTest
     private static MazeSchematic maze(int sizeY, List<String> palette, int[] voxels, int clearAbove)
     {
         return new MazeSchematic("test", 3465, 1, sizeY, 1, 0,
-                0, 0, 0, voxels.length, 0,
+                0, 0, 0, voxels.length,
                 palette, pack(voxels, 2), List.of(), clearAbove, "minecraft:stone_bricks");
     }
 

@@ -4,29 +4,56 @@
     "the pull-request build matrix and the release, so adding a version is one",
     "edit here - no workflow changes.",
     "",
+    "Fabric up to 1.21.x builds in the fabric module, with Yarn names. From 26.1",
+    "Minecraft ships with its own names, so there is no Yarn: those builds use the",
+    "fabric26 module, which shares its adapter (vanilla/src/mc26) with NeoForge.",
+    "",
     "Adding a version is not always free: the mod loaders compile against",
     "Minecraft's own classes, so a new series can break the adapter. If it does,",
-    "add fabric/src/mc<series>/java with the class that drifted (only",
-    "FabricWorldAccess has so far) and CI will tell you immediately."
+    "add a source directory for that series (fabric/src/mc<series>,",
+    "neoforge/src/mc<series>, or vanilla/src/mc<series> for both loaders on 26.x",
+    "and later) and CI will tell you immediately."
   ],
   "fabric": [
     {
       "mc": "1.20.1",
       "yarn": "1.20.1+build.10",
       "loader": "0.15.11",
-      "api": "0.92.2+1.20.1"
+      "api": "0.92.2+1.20.1",
+      "module": "fabric"
     },
     {
       "mc": "1.21.1",
       "yarn": "1.21.1+build.3",
       "loader": "0.16.9",
-      "api": "0.115.1+1.21.1"
+      "api": "0.115.1+1.21.1",
+      "module": "fabric"
+    },
+    {
+      "mc": "26.2",
+      "loader": "0.20.1",
+      "api": "0.161.0+26.2",
+      "module": "fabric26"
+    },
+    {
+      "mc": "26.3",
+      "loader": "0.20.1",
+      "api": "0.165.0+26.3",
+      "module": "fabric26"
     }
   ],
   "neoforge": [
     {
       "mc": "1.21.1",
       "neoforge": "21.1.243"
+    },
+    {
+      "mc": "26.2",
+      "neoforge": "26.2.0.93"
+    },
+    {
+      "mc": "26.3",
+      "neoforge": "26.3.0.99"
     }
   ]
 }

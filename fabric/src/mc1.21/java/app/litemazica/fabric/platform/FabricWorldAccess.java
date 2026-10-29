@@ -92,6 +92,8 @@ public final class FabricWorldAccess implements WorldAccess
     {
         BlockRotation rotation = ROTATIONS[Math.floorMod(quarterTurnsClockwise, 4)];
         BlockState[] states = new BlockState[palette.size()];
+        // Blocks this server doesn't have, so the operator can be told.
+        List<String> unknown = new ArrayList<>();
 
         for (int i = 0; i < states.length; i++)
         {
@@ -106,13 +108,14 @@ public final class FabricWorldAccess implements WorldAccess
             catch (Exception e)
             {
                 logger.warning("Unknown block '" + palette.get(i) + "' — using air.");
+                unknown.add(palette.get(i));
                 state = Blocks.AIR.getDefaultState();
             }
 
             states[i] = rotation == BlockRotation.NONE ? state : state.rotate(rotation);
         }
 
-        return new FabricPalette(states);
+        return new FabricPalette(states, List.copyOf(unknown));
     }
 
     @Override
@@ -331,7 +334,7 @@ public final class FabricWorldAccess implements WorldAccess
     }
 
     /** Palette entries already parsed and rotated into block states. */
-    private record FabricPalette(BlockState[] states) implements PreparedPalette
+    private record FabricPalette(BlockState[] states, List<String> unknownBlocks) implements PreparedPalette
     {
         @Override
         public int size()

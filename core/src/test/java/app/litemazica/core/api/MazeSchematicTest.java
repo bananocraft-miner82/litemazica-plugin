@@ -59,7 +59,7 @@ class MazeSchematicTest
     private static MazeSchematic schematic(int[] values)
     {
         return new MazeSchematic("test", 3465, SIZE_X, SIZE_Y, SIZE_Z, 0,
-                2, 0, 0, values.length, 0,
+                2, 0, 0, values.length,
                 PALETTE, pack(values, BITS), List.of(), 0, "minecraft:stone_bricks");
     }
 
@@ -145,7 +145,7 @@ class MazeSchematicTest
 
         IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
                 () -> new MazeSchematic("test", 3465, SIZE_X, SIZE_Y, SIZE_Z, 0,
-                        2, 0, 0, 0, 0, PALETTE, truncated, List.of(), 0, "minecraft:stone_bricks"));
+                        2, 0, 0, 0, PALETTE, truncated, List.of(), 0, "minecraft:stone_bricks"));
 
         assertTrue(e.getMessage().contains("BlockStates"), e.getMessage());
     }
@@ -155,7 +155,7 @@ class MazeSchematicTest
     {
         assertThrows(IllegalArgumentException.class,
                 () -> new MazeSchematic("test", 3465, SIZE_X, 0, SIZE_Z, 0,
-                        0, 0, 0, 0, 0, PALETTE, new long[64], List.of(), 0, "minecraft:stone_bricks"));
+                        0, 0, 0, 0, PALETTE, new long[64], List.of(), 0, "minecraft:stone_bricks"));
     }
 
     @Test
@@ -163,7 +163,7 @@ class MazeSchematicTest
     {
         assertThrows(IllegalArgumentException.class,
                 () -> new MazeSchematic("test", 3465, SIZE_X, SIZE_Y, SIZE_Z, 0,
-                        0, 0, 0, 0, 0, List.of(), new long[64], List.of(), 0, "minecraft:stone_bricks"));
+                        0, 0, 0, 0, List.of(), new long[64], List.of(), 0, "minecraft:stone_bricks"));
     }
 
     @Test
@@ -176,7 +176,7 @@ class MazeSchematicTest
         values[linear(1, 0, 0)] = 3;
 
         MazeSchematic maze = new MazeSchematic("test", 3465, SIZE_X, SIZE_Y, SIZE_Z, 0,
-                0, 0, 0, 0, 0, small, pack(values, 2), List.of(), 0, "minecraft:stone_bricks");
+                0, 0, 0, 0, small, pack(values, 2), List.of(), 0, "minecraft:stone_bricks");
 
         // Clamped rather than thrown: this runs inside the paste loop.
         assertEquals(0, maze.paletteIndex(1, 0, 0));

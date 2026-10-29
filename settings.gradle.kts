@@ -20,5 +20,7 @@ include("core")
 include("bukkit")
 // Fabric server-side mod.
 include("fabric")
+// Fabric from Minecraft 26.1 on (no Yarn names to remap; shares ../vanilla with NeoForge).
+include("fabric26")
 // NeoForge server-side mod.
 include("neoforge")

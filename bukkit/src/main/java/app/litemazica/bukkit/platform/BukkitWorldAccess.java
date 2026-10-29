@@ -75,6 +75,8 @@ public final class BukkitWorldAccess implements WorldAccess
     {
         StructureRotation rotation = ROTATIONS[Math.floorMod(quarterTurnsClockwise, 4)];
         BlockData[] data = new BlockData[palette.size()];
+        // Blocks this server doesn't have, so the operator can be told.
+        List<String> unknown = new ArrayList<>();
 
         for (int i = 0; i < data.length; i++)
         {
@@ -87,6 +89,7 @@ public final class BukkitWorldAccess implements WorldAccess
             catch (IllegalArgumentException e)
             {
                 logger.warning("Unknown block '" + palette.get(i) + "' — using air.");
+                unknown.add(palette.get(i));
                 parsed = Bukkit.createBlockData(Material.AIR);
             }
 
@@ -98,7 +101,7 @@ public final class BukkitWorldAccess implements WorldAccess
             data[i] = parsed;
         }
 
-        return new BukkitPalette(data);
+        return new BukkitPalette(data, List.copyOf(unknown));
     }
 
     @Override
@@ -457,7 +460,7 @@ public final class BukkitWorldAccess implements WorldAccess
     }
 
     /** Palette entries already parsed and rotated into Bukkit block data. */
-    private record BukkitPalette(BlockData[] data) implements PreparedPalette
+    private record BukkitPalette(BlockData[] data, List<String> unknownBlocks) implements PreparedPalette
     {
         @Override
         public int size()
