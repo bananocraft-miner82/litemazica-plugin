@@ -30,6 +30,9 @@ replay_pid*
 build/
 .gradle/
 
+# Minecraft's own logs, which the fabric26 tests write as the game starts up
+logs/
+
 # IntelliJ IDEA
 .idea/
 *.iml

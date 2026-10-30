@@ -26,6 +26,10 @@ dependencies {
     implementation("net.fabricmc.fabric-api:fabric-api:$fabricApiVersion")
 
     implementation(project(":core"))
+
+    // Starts Minecraft's classes for the tests, so ConnectionCheckTest can ask
+    // the game how it joins the web app's fences and walls.
+    testImplementation("net.fabricmc:fabric-loader-junit:$loaderVersion")
 }
 
 // Minecraft 26.x runs on Java 25.

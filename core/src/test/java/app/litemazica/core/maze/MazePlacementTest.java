@@ -296,6 +296,30 @@ class MazePlacementTest
     }
 
     @Test
+    void placesFloodedFencesWallsAndPanesWithTheSolidsAsGiven()
+    {
+        // A flooded maze's thin walls come waterlogged and already joined up: they go in with the
+        // solids, unchanged, and the water round them after.
+        String fence = "minecraft:oak_fence[east=true,north=false,south=false,waterlogged=true,west=true]";
+        String wall = "minecraft:cobblestone_wall[east=low,north=none,south=none,up=false,waterlogged=true,west=low]";
+        String pane = "minecraft:glass_pane[east=true,north=false,south=false,waterlogged=true,west=true]";
+        List<String> palette = List.of("minecraft:air", "minecraft:cobblestone", "minecraft:water[level=0]", fence, wall, pane);
+        int[] voxels = {1, 3, 4, 5, 1, 2, 2, 2, 2, 2};
+        MazeSchematic maze = new MazeSchematic("test", 4903, 5, 2, 1, 0,
+                0, 0, 0, voxels.length,
+                palette, pack(voxels, 3), List.of(), List.of(), 0, "minecraft:stone_bricks", 0);
+        FakeWorld world = new FakeWorld();
+
+        MazePlacer.place(new TestScheduler(), world, maze, 0, 64, 0, 270f, 0, r -> {});
+
+        List<String> order = world.writeOrder.stream().map(w -> w.substring(0, w.indexOf('@'))).toList();
+        assertTrue(order.containsAll(List.of(fence, wall, pane)), "placed exactly as built: " + order);
+        int lastSolid = Math.max(order.lastIndexOf(fence), Math.max(order.lastIndexOf(wall), order.lastIndexOf(pane)));
+        assertTrue(lastSolid < order.indexOf("minecraft:water[level=0]"), "thin walls first, then the water: " + order);
+        assertTrue(MazePlacer.holdsFluids(palette), "a flooded maze is drained before it's cleared");
+    }
+
+    @Test
     void clearsFromTheTopLayerDown()
     {
         FakeWorld world = new FakeWorld();

@@ -215,6 +215,27 @@ one with the ceiling off and a water depth below the wall tops.
 | U7 | `remove <id>` | The terrain comes back with **no water left** where the maze was. |
 | U8 | `generate <open-top-code>` under a hillside with blend on | The water stops short of the wall tops; buried parts are capped; nothing floods out. |
 
+## Fences, walls and panes
+
+Make share codes in the app with fences, walls (cobblestone wall and the rest),
+panes or bars in the walls: the Picket Garden and Battlements starter mazes, a
+wall palette mixing fences, walls and panes, a walled plot with a Door way in
+in a fence maze, and one of them with **Underwater** on. ConnectionCheckTest
+in fabric26 already checks the states against 26.3's own rules; these are
+what only a real world shows.
+
+| # | Step | Expected |
+| --- | --- | --- |
+| W1 | `generate <picket-garden-code>`, then place a block beside a fence | The fences stand joined in lines, not loose posts, and **don't change** when a neighbour updates. |
+| W2 | Litematica: load the same maze's download and run the schematic verifier over the built one | No wrong states on any fence, wall, pane or gate. |
+| W3 | Walk the mixed palette maze, trying to squeeze between unlike blocks (a fence beside a wall) | No gap anywhere: where two kinds meet, one is a full block. |
+| W4 | Jump at a two-high fence and a two-high wall | You can't get over either. |
+| W5 | Look at the Battlements torches and the Picket Garden lanterns; update a block next to one | They stand on top of the walls and stay there. Torches and ladders on thin walls elsewhere have a full block behind them. |
+| W6 | The plot's way in, in the fence maze | A fence gate in the fence's own wood (crimson in nether brick fences), not a door; it opens and closes. |
+| W7 | The flooded one: look at the walls, then the outside | Water inside the fences and walls; a solid ring of their full block round the outside; **no water outside the walls**. |
+| W8 | `remove <id>` on the flooded one | The terrain comes back with no water left behind. |
+| W9 | Bedrock export of the flooded one, in Bedrock | The same: no water gets out through the walls. |
+
 ## Server version
 
 | # | Step | Expected |
